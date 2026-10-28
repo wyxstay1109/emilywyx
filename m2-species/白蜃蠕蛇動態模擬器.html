@@ -1,0 +1,2465 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>白蜃蠕蛇 (Gypsochiton serpentinus) - 超寫實 3D 仿生動態模擬器</title>
+  <!-- 本地與 CDN 雙重支援，離線或連線均可完美運行 -->
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="OrbitControls.js"></script>
+  <script>
+    if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: #090b0e;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
+      width: 100vw;
+    }
+    #canvas-container {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      background: #14110e;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* 3D 畫面浮動提示 */
+    .viewport-overlay {
+      position: absolute;
+      top: 18px;
+      left: 20px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      z-index: 5;
+    }
+    .view-chip {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.76rem;
+      color: #94a3b8;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+    }
+    .view-chip strong {
+      color: #38bdf8;
+    }
+
+    /* 控制側欄 */
+    #ui-panel {
+      width: 415px;
+      min-width: 385px;
+      height: 100%;
+      background: rgba(15, 20, 28, 0.98);
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      overflow-y: auto;
+      box-shadow: -12px 0 35px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #ui-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    #ui-panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 3px;
+    }
+    #ui-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    h1 {
+      font-size: 1.30rem;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+    .species-tag {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      font-style: italic;
+      margin-bottom: 4px;
+    }
+    .badge-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(110, 231, 183, 0.15);
+      color: #6ee7b7;
+      border: 1px solid rgba(110, 231, 183, 0.35);
+      font-weight: 500;
+    }
+    .mode-3d-badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      font-weight: 600;
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+
+    .section {
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 11px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .section-title {
+      font-size: 0.81rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 4px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.79rem;
+      color: #cbd5e1;
+    }
+    .stat-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    .btn-group-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    button {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: #f1f5f9;
+      font-size: 0.77rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+    button.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+      color: #fff;
+    }
+    button.pink-mode.active {
+      background: #be185d;
+      border-color: #f472b6;
+      box-shadow: 0 0 12px rgba(244, 114, 182, 0.45);
+      color: #fff;
+    }
+    button.deluge-btn.active {
+      background: #0891b2;
+      border-color: #22d3ee;
+      box-shadow: 0 0 14px rgba(34, 211, 238, 0.5);
+      color: #fff;
+    }
+    button.cam-btn.active {
+      background: #4338ca;
+      border-color: #818cf8;
+      box-shadow: 0 0 10px rgba(129, 140, 248, 0.45);
+      color: #fff;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.76rem;
+      color: #94a3b8;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+    }
+    input[type=range] {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }
+
+    .hint-box {
+      font-size: 0.73rem;
+      color: #94a3b8;
+      line-height: 1.5;
+      background: rgba(15, 23, 42, 0.5);
+      border-left: 3px solid #38bdf8;
+      padding: 7px 10px;
+      border-radius: 0 6px 6px 0;
+    }
+    .hint-box b {
+      color: #e2e8f0;
+    }
+
+    .morph-info-tag {
+      font-size: 0.72rem;
+      padding: 7px 10px;
+      border-radius: 6px;
+      background: rgba(244, 114, 182, 0.12);
+      color: #f472b6;
+      border: 1px solid rgba(244, 114, 182, 0.28);
+      line-height: 1.48;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D 渲染畫布容器 -->
+  <div id="canvas-container">
+    <div class="viewport-overlay">
+      <div class="view-chip">
+        <span>🎮 3D 視角操作：</span>
+        <strong>左鍵拖曳旋轉</strong> | <strong>滾輪平滑縮放</strong> | <strong>右鍵平移</strong>
+      </div>
+      <div class="view-chip" id="target-chip">
+        <span>🎯 滑鼠水氣導引：</span>
+        <strong id="overlay-guide-text">移動游標指引蠕蛇前進，游動方向完全隨滑鼠即時對應</strong>
+      </div>
+      <div class="view-chip" id="state-chip">
+        <span>✨ 當前狀態：</span>
+        <strong id="overlay-status" style="color: #6ee7b7;">半透明乳白螺紋甲・體表微分生長微血管透射脈衝</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- 側邊控制面板 -->
+  <div id="ui-panel">
+    <div>
+      <h1>白蜃蠕蛇 <span class="mode-3d-badge">寫實仿生 3D 引擎</span></h1>
+      <div class="species-tag">Gypsochiton serpentinus</div>
+      <div class="badge-row">
+        <span class="badge">人類滅絕5000年後</span>
+        <span class="badge" style="background: rgba(244, 114, 182, 0.15); color: #f472b6; border-color: rgba(244, 114, 182, 0.3);">超大陸內陸鹽原</span>
+        <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.35);">半透明乳白石膏甲</span>
+      </div>
+    </div>
+
+    <!-- 生理生態即時指數 -->
+    <div class="section">
+      <div class="section-title">生理生態狀態 (Physiology)</div>
+      
+      <div class="stat-row">
+        <span>當前生理階段：</span>
+        <span id="state-text" class="stat-value" style="color: #34d399;">地表進食與巡弋</span>
+      </div>
+
+      <div>
+        <div class="stat-row">
+          <span>體內儲水囊存量：</span>
+          <span id="water-val" class="stat-value">88%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="water-bar" class="progress-bar-fill" style="width: 88%;"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="stat-row">
+          <span>半透石膏甲厚度：</span>
+          <span id="shell-val" class="stat-value">100% (完好)</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="shell-bar" class="progress-bar-fill" style="width: 100%; background: linear-gradient(90deg, #fbcfe8, #ffffff);"></div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <span>吻端受器濕度偵測：</span>
+        <span id="humidity-val" class="stat-value" style="color: #38bdf8;">0.8% (極度乾燥)</span>
+      </div>
+    </div>
+
+    <!-- 滑鼠引導模式切換 -->
+    <div class="section">
+      <div class="section-title">滑鼠導引互動 (Mouse Tracking)</div>
+      <div class="btn-group">
+        <button id="btn-guide-mouse" class="active" onclick="toggleMouseGuide(true)">
+          🎯 滑鼠即時導引 (跟隨游標)
+        </button>
+        <button id="btn-guide-auto" onclick="toggleMouseGuide(false)">
+          🧭 自主巡弋漫遊
+        </button>
+      </div>
+      <div class="hint-box">
+        💡 <b>滑鼠互動對應</b>：游標在 3D 地面上移動時，會投射<b>「動態水氣誘導光圈」</b>。鼠標往上移，蠕蛇往前游動；鼠標往左/右/後移，蠕蛇朝對應方向轉向跟隨，完全與滑鼠移動方向同步！
+      </div>
+    </div>
+
+    <!-- 型態模式切換 (有殼 vs 無殼交配) -->
+    <div class="section">
+      <div class="section-title">型態外觀切換 (Morphology)</div>
+      <div class="btn-group">
+        <button id="btn-shelled" class="active" onclick="setShellMode(true)">
+          🛡️ 有殼態 (白裡透紅)
+        </button>
+        <button id="btn-naked" class="pink-mode" onclick="setShellMode(false)">
+          🪱 無殼交配態 (粉嫩)
+        </button>
+      </div>
+      <div id="morph-desc" class="morph-info-tag">
+        <b>有殼態</b>：覆蓋連續清晰的半透明乳白螺旋石膏甲，次表面物理透射顯露內部粉嫩肉體與<b>體表微分生長微血管網絡 (Differential Growth)</b>；頭部呈食蟻獸流線型，微微隆起永久硬護盾。
+      </div>
+    </div>
+
+    <!-- 運動模式切換 (蛇行 vs 螺旋鑽地) -->
+    <div class="section">
+      <div class="section-title">運動動力學切換 (Locomotion)</div>
+      <div class="btn-group">
+        <button id="btn-crawl" class="active" onclick="setLocomotionMode('crawl')">
+          🐍 側向蛇行滑動
+        </button>
+        <button id="btn-drill" onclick="setLocomotionMode('drill')">
+          🔩 阿基米德螺旋鑽探
+        </button>
+      </div>
+      <div class="hint-box">
+        💡 <b>模式說明</b>：蛇行時左右產生側向波動滑行；螺旋鑽探時，身體沿軸向自轉，外殼清晰平滑的阿基米德連續螺旋棱線如巨型鑽頭切入岩鹽！
+      </div>
+    </div>
+
+    <!-- 特殊生態行為事件 -->
+    <div class="section">
+      <div class="section-title">特殊生態事件 (Behavior & Ecology)</div>
+      <div class="btn-group">
+        <button id="btn-rain" class="deluge-btn" onclick="toggleRain()">
+          🌧️ 降下超級暴雨
+        </button>
+        <button id="btn-burrow" onclick="toggleBurrow()">
+          ⛏️ 鑽地潛伏 (脫殼)
+        </button>
+      </div>
+      <div class="btn-group">
+        <button id="btn-salt" onclick="triggerSaltExtrusion()">
+          🧂 尾端排泄鹽柱
+        </button>
+        <button id="btn-feed" onclick="feedAndRegrow()">
+          🏜️ 吞沙修復外殼
+        </button>
+      </div>
+      <div class="btn-group">
+        <button id="btn-mate" onclick="togglePartner()">
+          👫 伴侶偶遇／分裂同游
+        </button>
+        <button id="btn-cam-reset" onclick="resetCamera()">
+          🔄 重置鏡頭預設
+        </button>
+      </div>
+      <div class="hint-box">
+        👫 <b>伴侶同游機制</b>：兩隻白蜃蠕蛇具備<b>物理球體彈性排斥與並行跟隨演算法</b>，保持並行優雅同游，<b>絕不互相碰撞或穿模重疊</b>。
+      </div>
+    </div>
+
+    <!-- 運動參數微調 -->
+    <div class="section">
+      <div class="section-title">即時動力參數 (Kinematics Tuning)</div>
+      
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>前進游動速度 (Speed)</span>
+          <span id="speed-display">3.2</span>
+        </div>
+        <input type="range" id="slider-speed" min="1.0" max="6.5" step="0.2" value="3.2" oninput="updateSliders()">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>側向波動振幅 (Amplitude)</span>
+          <span id="amp-display">25</span>
+        </div>
+        <input type="range" id="slider-amp" min="8" max="45" value="25" oninput="updateSliders()">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>波浪擺動頻率 (Frequency)</span>
+          <span id="freq-display">0.11</span>
+        </div>
+        <input type="range" id="slider-freq" min="0.04" max="0.22" step="0.01" value="0.11" oninput="updateSliders()">
+      </div>
+    </div>
+
+    <!-- 3D 鏡頭視角控制 -->
+    <div class="section">
+      <div class="section-title">3D 攝影機視角 (Camera Views)</div>
+      <div class="btn-group-3">
+        <button id="cam-free" class="cam-btn active" onclick="setCameraMode('free')">
+          🎥 自由環繞
+        </button>
+        <button id="cam-follow" class="cam-btn" onclick="setCameraMode('follow')">
+          🐍 追尾跟隨
+        </button>
+        <button id="cam-top" class="cam-btn" onclick="setCameraMode('top')">
+          🛰️ 真・鳥瞰俯視
+        </button>
+      </div>
+      <div class="btn-group" style="margin-top: 4px;">
+        <button id="cam-head" class="cam-btn" onclick="setCameraMode('head')">
+          🔍 食蟻獸吻端特寫
+        </button>
+        <button class="cam-btn" onclick="resetCamera()">
+          🎯 鏡頭回正居中
+        </button>
+      </div>
+      <div class="hint-box" style="margin-top: 2px;">
+        🛰️ <b>真正鳥瞰保證</b>：由天空直視大地（90° 垂直俯視），清晰俯瞰蠕蛇在多邊形鹽漠上優雅滑行，<b>絕非地底仰視</b>！
+      </div>
+    </div>
+
+    <!-- 解剖構造特徵與設定對應說明 -->
+    <div class="section">
+      <div class="section-title">超寫實生物解剖特徵 (Realistic Anatomy)</div>
+      <div style="font-size: 0.74rem; color: #cbd5e1; line-height: 1.6; display: flex; flex-direction: column; gap: 6px;">
+        <div>🔹 <b>半透明乳白石膏甲 (白裡透紅)</b>：採用 MeshPhysicalMaterial 物理光學透射 (Transmission) 與微晶石膏次表面散射，內部粉嫩肉體與微血管清晰透射。</div>
+        <div>🔹 <b>清晰連續螺旋造型 (非方塊)</b>：依循阿基米德螺旋線以平滑流線連續曲面建模，脊棱如深海扁螺絲般環繞軀幹，螺旋鑽探時真實破土自轉。</div>
+        <div>🔹 <b>體表微分生長微血管網 (Differential Growth)</b>：微血管依循生物型態發生學的<b>微分生長演算法 (Differential Growth)</b>於體表組織自然分佈，如真皮微血管床般迷宮蜿蜒交織，深嵌於體表肌肉層而不向外突出，隨體液循環發出微搏動。</div>
+        <div>🔹 <b>食蟻獸式流線頭顱與微凸硬殼</b>：非磚塊突兀構造！吻端為修長平滑錐形，頭部永久硬殼僅微微凸起，順應顱頂優雅曲面服貼延伸。</div>
+        <div>🔹 <b>尾端排鹽腺錐門</b>：過量鹽分以高純度六角柱結晶形式定期排泄於鹽漠地表。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // =========================================================================
+    // 全域變數與系統狀態
+    // =========================================================================
+    var scene, camera, renderer, controls;
+    var mainWorm = null;
+    var partnerWorm = null;
+    var showPartner = false;
+
+    var terrainMesh, terrainMaterial;
+    var algaePatches = [];
+    var shellShards = [];
+    var saltColumns = [];
+    var rainParticles, rainGeo;
+    var guideBeacon;
+
+    // 生態與行為狀態
+    var hasShell = true;               // true: 有殼態 (白裡透紅), false: 無殼交配態 (粉嫩)
+    var locomotionMode = 'crawl';      // 'crawl' (蛇行) 或 'drill' (螺旋自轉鑽探)
+    var isRaining = false;             // 是否超級暴雨
+    var rainTimer = 0;
+    var isBurrowed = false;            // 是否鑽入地底潛伏
+    var burrowDepth = 0.0;
+    var followMouse = true;            // 是否跟隨滑鼠即時導引
+
+    // 生理數值
+    var waterLevel = 88.0;
+    var shellHealth = 100.0;
+
+    // 動態運動參數
+    var moveSpeed = 3.2;
+    var waveAmp = 25.0;
+    var waveFreq = 0.11;
+    var drillAngle = 0.0;
+
+    // 攝影機模式
+    var cameraMode = 'free'; // 'free', 'follow', 'top', 'head'
+
+    // 滑鼠地表射線導引
+    var raycaster = new THREE.Raycaster();
+    var mouseVec = new THREE.Vector2();
+    var groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    var guideTarget = new THREE.Vector3(0, 0, 0);
+    var hasGuideTarget = false;
+
+    // 光源物件
+    var dirLight, ambientLight, skyFillLight;
+
+    // 程序化共用紋理
+    var sharedVascularTexture = null;
+    var sharedShellNormalTexture = null;
+
+    // =========================================================================
+    // 程序化高階生醫紋理生成器：微分生長微血管網絡 (Differential Growth Vasculature)
+    // 依據自然界生物形態發生學 (Morphogenesis)，透過節點細分、排斥力、彈性拉力、
+    // 平滑約束與血管新生分支演算法，於體表生成真實迷宮蜿蜒交織的微血管網絡，完全內嵌於肉質中不凸出體外。
+    // =========================================================================
+    function createDifferentialGrowthVascularTexture() {
+      var canvas = document.createElement('canvas');
+      canvas.width = 2048;
+      canvas.height = 1024;
+      var ctx = canvas.getContext('2d');
+
+      var width = 2048;
+      var height = 1024;
+
+      // 1. 基底肉質：溫潤粉紅與活體皮下微血管床基色
+      var grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0.0, '#f472b6');  // 背側淡粉肉質
+      grad.addColorStop(0.28, '#fb7185'); // 側腹毛細血管豐富帶
+      grad.addColorStop(0.72, '#f43f5e'); // 腹側深粉紅微血管叢
+      grad.addColorStop(1.0, '#fda4af');  // 腹足爬行面淡粉肉質
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 皮下微血管床瀰漫暈染 (Diffuse subcutaneous capillary blushing)
+      for (var b = 0; b < 2200; b++) {
+        var bx = Math.random() * width;
+        var by = Math.random() * height;
+        var br = 4 + Math.random() * 18;
+        ctx.fillStyle = 'rgba(225, 29, 72, ' + (0.035 + Math.random() * 0.08) + ')';
+        ctx.beginPath();
+        ctx.arc(bx, by, br, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2. 微分生長 (Differential Growth) 物理演算法運算
+      var maxEdge = 36;
+      var targetDist = 20;
+      var repelRadius = 38;
+      var repelForce = 0.92;
+      var springForce = 0.45;
+      var smoothForce = 0.35;
+
+      var paths = [];
+      var numSeedPaths = 12; // 覆蓋全體表的密集主幹種子線
+      for (var p = 0; p < numSeedPaths; p++) {
+        var path = [];
+        var baseY = (p + 0.5) * (height / numSeedPaths);
+        var numNodes = 20;
+        for (var n = 0; n < numNodes; n++) {
+          var x = (n / (numNodes - 1)) * (width - 80) + 40;
+          var y = baseY + (Math.random() - 0.5) * 28;
+          path.push({ x: x, y: y, vx: 0, vy: 0, isTrunk: (p % 2 === 0) });
+        }
+        paths.push(path);
+      }
+
+      var cellSize = 42;
+      for (var step = 0; step < 65; step++) {
+        // (A) 節點細分生長 (Subdivision & Growth)
+        for (var pi = 0; pi < paths.length; pi++) {
+          var path = paths[pi];
+          for (var i = path.length - 2; i >= 0; i--) {
+            var dx = path[i + 1].x - path[i].x;
+            var dy = path[i + 1].y - path[i].y;
+            var dist = Math.hypot(dx, dy);
+            if (dist > maxEdge) {
+              var midX = (path[i].x + path[i + 1].x) * 0.5 + (Math.random() - 0.5) * 4;
+              var midY = (path[i].y + path[i + 1].y) * 0.5 + (Math.random() - 0.5) * 4;
+              path.splice(i + 1, 0, { x: midX, y: midY, vx: 0, vy: 0, isTrunk: path[i].isTrunk });
+            }
+          }
+
+          // 血管新生分支 (Angiogenic Branching into voids)
+          if (step > 8 && step % 7 === 0 && paths.length < 32) {
+            var branchIdx = Math.floor(Math.random() * (path.length - 4)) + 2;
+            var bNode = path[branchIdx];
+            var angle = (Math.random() > 0.5 ? 1 : -1) * (Math.PI * 0.45) + (Math.random() - 0.5) * 0.4;
+            paths.push([
+              { x: bNode.x, y: bNode.y, vx: 0, vy: 0, isTrunk: false },
+              { x: bNode.x + Math.cos(angle) * targetDist, y: bNode.y + Math.sin(angle) * targetDist, vx: 0, vy: 0, isTrunk: false }
+            ]);
+          }
+        }
+
+        // (B) 建立空間加速網格 (Spatial Partitioning Grid)
+        var grid = {};
+        for (var pi = 0; pi < paths.length; pi++) {
+          var path = paths[pi];
+          for (var i = 0; i < path.length; i++) {
+            var node = path[i];
+            var key = Math.floor(node.x / cellSize) + '_' + Math.floor(node.y / cellSize);
+            if (!grid[key]) grid[key] = [];
+            grid[key].push({ node: node, pathIdx: pi, nodeIdx: i });
+          }
+        }
+
+        // (C) 作用力計算 (排斥力 + 鄰近彈簧拉力 + 曲率平滑)
+        for (var pi = 0; pi < paths.length; pi++) {
+          var path = paths[pi];
+          for (var i = 0; i < path.length; i++) {
+            var node = path[i];
+            var fx = 0, fy = 0;
+            var gx = Math.floor(node.x / cellSize);
+            var gy = Math.floor(node.y / cellSize);
+
+            // 排斥力 (防止血管重疊碰撞，促使均勻蜿蜒鋪展)
+            for (var ox = -1; ox <= 1; ox++) {
+              for (var oy = -1; oy <= 1; oy++) {
+                var cell = grid[(gx + ox) + '_' + (gy + oy)];
+                if (!cell) continue;
+                for (var c = 0; c < cell.length; c++) {
+                  var other = cell[c];
+                  if (other.pathIdx === pi && Math.abs(other.nodeIdx - i) <= 1) continue;
+                  var dx = node.x - other.node.x;
+                  var dy = node.y - other.node.y;
+                  var d = Math.hypot(dx, dy);
+                  if (d > 0.001 && d < repelRadius) {
+                    var force = (1.0 - d / repelRadius) * repelForce;
+                    fx += (dx / d) * force;
+                    fy += (dy / d) * force;
+                  }
+                }
+              }
+            }
+
+            // 彈簧張力 (維持血管連續性)
+            if (i > 0) {
+              var prev = path[i - 1];
+              var dPrev = Math.hypot(node.x - prev.x, node.y - prev.y);
+              if (dPrev > 0.001) {
+                var sForce = (dPrev - targetDist) * springForce;
+                fx -= ((node.x - prev.x) / dPrev) * sForce;
+                fy -= ((node.y - prev.y) / dPrev) * sForce;
+              }
+            }
+            if (i < path.length - 1) {
+              var next = path[i + 1];
+              var dNext = Math.hypot(node.x - next.x, node.y - next.y);
+              if (dNext > 0.001) {
+                var sForce = (dNext - targetDist) * springForce;
+                fx -= ((node.x - next.x) / dNext) * sForce;
+                fy -= ((node.y - next.y) / dNext) * sForce;
+              }
+            }
+
+            // 曲率平滑力 (拉普拉斯平滑，使微血管曲線自然圓潤)
+            if (i > 0 && i < path.length - 1) {
+              fx += ((path[i - 1].x + path[i + 1].x) * 0.5 - node.x) * smoothForce;
+              fy += ((path[i - 1].y + path[i + 1].y) * 0.5 - node.y) * smoothForce;
+            }
+
+            node.vx = node.vx * 0.5 + fx * 0.5;
+            node.vy = node.vy * 0.5 + fy * 0.5;
+          }
+        }
+
+        // (D) 位置更新
+        for (var pi = 0; pi < paths.length; pi++) {
+          var path = paths[pi];
+          for (var i = 0; i < path.length; i++) {
+            var node = path[i];
+            node.x = Math.max(15, Math.min(width - 15, node.x + node.vx));
+            node.y = Math.max(15, Math.min(height - 15, node.y + node.vy));
+          }
+        }
+      }
+
+      // 3. 多層次鮮紅清晰生理組織血管繪製 (High-Contrast Vivid Red Vascular Rendering)
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // (1) 深層皮下微血管充血暈染層 (Subdermal Hemoglobin Wash - 絕佳暈染效果完全保留)
+      for (var pi = 0; pi < paths.length; pi++) {
+        var path = paths[pi];
+        if (path.length < 2) continue;
+        ctx.strokeStyle = 'rgba(225, 29, 72, 0.28)';
+        ctx.lineWidth = path[0].isTrunk ? 18 : 12;
+        ctx.beginPath();
+        ctx.moveTo(path[0].x, path[0].y);
+        for (var i = 1; i < path.length - 1; i++) {
+          var xc = (path[i].x + path[i + 1].x) * 0.5;
+          var yc = (path[i].y + path[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(path[i].x, path[i].y, xc, yc);
+        }
+        ctx.lineTo(path[path.length - 1].x, path[path.length - 1].y);
+        ctx.stroke();
+      }
+
+      // (2) 高對比暗紅血管邊界層 (Dark Contrast Border - 襯托微血管鮮明輪廓)
+      for (var pi = 0; pi < paths.length; pi++) {
+        var path = paths[pi];
+        if (path.length < 2) continue;
+        ctx.strokeStyle = '#7f1d1d';
+        ctx.lineWidth = path[0].isTrunk ? 9.0 : 6.0;
+        ctx.beginPath();
+        ctx.moveTo(path[0].x, path[0].y);
+        for (var i = 1; i < path.length - 1; i++) {
+          var xc = (path[i].x + path[i + 1].x) * 0.5;
+          var yc = (path[i].y + path[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(path[i].x, path[i].y, xc, yc);
+        }
+        ctx.lineTo(path[path.length - 1].x, path[path.length - 1].y);
+        ctx.stroke();
+      }
+
+      // (3) 體表清晰可見的鮮紅色微血管核心 (Vivid Scarlet Fresh Blood Core - 鮮紅色極其明顯！)
+      for (var pi = 0; pi < paths.length; pi++) {
+        var path = paths[pi];
+        if (path.length < 2) continue;
+        ctx.strokeStyle = '#ff0038'; // 高飽和鮮紅動脈血色
+        ctx.lineWidth = path[0].isTrunk ? 6.5 : 4.0;
+        ctx.beginPath();
+        ctx.moveTo(path[0].x, path[0].y);
+        for (var i = 1; i < path.length - 1; i++) {
+          var xc = (path[i].x + path[i + 1].x) * 0.5;
+          var yc = (path[i].y + path[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(path[i].x, path[i].y, xc, yc);
+        }
+        ctx.lineTo(path[path.length - 1].x, path[path.length - 1].y);
+        ctx.stroke();
+      }
+
+      // (4) 遍佈體表的鮮紅網狀吻合微血管網 (Reticulated Capillary Meshwork - 網狀分布清晰可見)
+      for (var a = 0; a < 150; a++) {
+        var p1 = paths[Math.floor(Math.random() * paths.length)];
+        var p2 = paths[Math.floor(Math.random() * paths.length)];
+        if (p1 === p2 || p1.length < 2 || p2.length < 2) continue;
+        var n1 = p1[Math.floor(Math.random() * p1.length)];
+        var n2 = p2[Math.floor(Math.random() * p2.length)];
+        var dist = Math.hypot(n1.x - n2.x, n1.y - n2.y);
+        if (dist > 18 && dist < 95) {
+          // 網狀血管外緣暈染
+          ctx.strokeStyle = 'rgba(239, 35, 60, 0.45)';
+          ctx.lineWidth = 5.0;
+          ctx.beginPath();
+          ctx.moveTo(n1.x, n1.y);
+          var cpx = (n1.x + n2.x) * 0.5 + (Math.random() - 0.5) * 16;
+          var cpy = (n1.y + n2.y) * 0.5 + (Math.random() - 0.5) * 16;
+          ctx.quadraticCurveTo(cpx, cpy, n2.x, n2.y);
+          ctx.stroke();
+
+          // 鮮紅網狀吻合小血管 (清晰可見)
+          ctx.strokeStyle = '#ff1744';
+          ctx.lineWidth = 2.8;
+          ctx.beginPath();
+          ctx.moveTo(n1.x, n1.y);
+          ctx.quadraticCurveTo(cpx, cpy, n2.x, n2.y);
+          ctx.stroke();
+        }
+      }
+
+      // (5) 鮮紅血管中央微細高光亮核 (Luminal Highlight)
+      for (var pi = 0; pi < paths.length; pi++) {
+        var path = paths[pi];
+        if (path.length < 2) continue;
+        ctx.strokeStyle = '#ffccd5';
+        ctx.lineWidth = path[0].isTrunk ? 2.0 : 1.2;
+        ctx.beginPath();
+        ctx.moveTo(path[0].x, path[0].y);
+        for (var i = 1; i < path.length - 1; i++) {
+          var xc = (path[i].x + path[i + 1].x) * 0.5;
+          var yc = (path[i].y + path[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(path[i].x, path[i].y, xc, yc);
+        }
+        ctx.lineTo(path[path.length - 1].x, path[path.length - 1].y);
+        ctx.stroke();
+      }
+
+      var tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    function createShellNormalTexture() {
+      var canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      var ctx = canvas.getContext('2d');
+
+      // 中性法線底色
+      ctx.fillStyle = 'rgb(128, 128, 255)';
+      ctx.fillRect(0, 0, 512, 512);
+
+      // 石膏微晶解理紋路與螺旋生長線 (Spiral growth striae)
+      ctx.lineWidth = 1.6;
+      for (var i = 0; i < 45; i++) {
+        var y = (i / 45) * 512;
+        var rVal = 128 + Math.floor((Math.random() - 0.5) * 35);
+        var gVal = 128 + Math.floor((Math.random() - 0.5) * 35);
+        ctx.strokeStyle = 'rgb(' + rVal + ',' + gVal + ', 250)';
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        for (var x = 0; x <= 512; x += 32) {
+          ctx.lineTo(x, y + Math.sin(x * 0.04 + i) * 3.5);
+        }
+        ctx.stroke();
+      }
+
+      var tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    // =========================================================================
+    // 系統初始化 (Three.js 3D Setup)
+    // =========================================================================
+    function init() {
+      var container = document.getElementById('canvas-container');
+      var w = container.clientWidth || (window.innerWidth - 415);
+      var h = container.clientHeight || window.innerHeight;
+
+      // 1. 場景
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x110e0b);
+      scene.fog = new THREE.FogExp2(0x110e0b, 0.00065);
+
+      // 2. 攝影機 (PerspectiveCamera)
+      camera = new THREE.PerspectiveCamera(45, w / h, 1, 6000);
+      camera.position.set(240, 270, 410);
+
+      // 3. 渲染器 (支援高階物理散射與抗鋸齒)
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      container.appendChild(renderer.domElement);
+
+      // 4. 軌道控制器 (OrbitControls - 保證不穿地底，支援真鳥瞰)
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.07;
+      controls.maxPolarAngle = Math.PI / 2 - 0.03; // 防止沉入地下
+      controls.minPolarAngle = 0.01;              // 支援 90 度完全垂直俯視
+      controls.minDistance = 30;
+      controls.maxDistance = 2500;
+      controls.target.set(0, 8, 0);
+
+      // 5. 光源配置 (重點襯托半透乳白石膏甲與內部血管紅暈)
+      setupLighting();
+
+      // 6. 生成程序化紋理
+      sharedVascularTexture = createDifferentialGrowthVascularTexture();
+      sharedShellNormalTexture = createShellNormalTexture();
+
+      // 7. 3D 大地鹽漠與乾裂地盤
+      createSaltTerrain();
+
+      // 8. 綠藻席群落
+      createAlgaePatches(22);
+
+      // 9. 建立寫實白蜃蠕蛇主體 (Wyrm3D)
+      mainWorm = new Wyrm3D(0, 0, false);
+
+      // 10. 暴雨粒子系統
+      setupRainSystem();
+
+      // 11. 地面水氣導引光圈
+      setupGuideBeacon();
+
+      // 12. 事件監聽
+      window.addEventListener('resize', onWindowResize, false);
+      renderer.domElement.addEventListener('pointermove', onPointerMove, false);
+      renderer.domElement.addEventListener('pointerdown', onPointerDown, false);
+
+      // 啟動動畫渲染主循環
+      animate();
+    }
+
+    // =========================================================================
+    // 光源配置
+    // =========================================================================
+    function setupLighting() {
+      ambientLight = new THREE.AmbientLight(0xe8e0d5, 0.65);
+      scene.add(ambientLight);
+
+      // 斜射金黃日光
+      dirLight = new THREE.DirectionalLight(0xfff7ea, 1.4);
+      dirLight.position.set(550, 750, 400);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 100;
+      dirLight.shadow.camera.far = 2000;
+      var d = 750;
+      dirLight.shadow.camera.left = -d;
+      dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d;
+      dirLight.shadow.camera.bottom = -d;
+      dirLight.shadow.bias = -0.0004;
+      scene.add(dirLight);
+
+      // 天空冷藍反光 (強烈襯托乳白微晶石膏的光學折射透射)
+      skyFillLight = new THREE.DirectionalLight(0x7dd3fc, 0.45);
+      skyFillLight.position.set(-450, 320, -350);
+      scene.add(skyFillLight);
+
+      // 腹側地表反射光 (使腹部微血管透射更富溫潤血色)
+      var groundWarmLight = new THREE.DirectionalLight(0xfca5a5, 0.22);
+      groundWarmLight.position.set(0, -200, 0);
+      scene.add(groundWarmLight);
+    }
+
+    // =========================================================================
+    // 程序化大地鹽漠地表 (Procedural Salt Flats Terrain)
+    // =========================================================================
+    function createSaltTerrain() {
+      var canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      var ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#2b231c';
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      var points = [];
+      for (var i = 0; i < 75; i++) {
+        points.push({ x: Math.random() * 1024, y: Math.random() * 1024 });
+      }
+
+      ctx.strokeStyle = 'rgba(240, 243, 248, 0.32)';
+      ctx.lineWidth = 3.2;
+      for (var p1 = 0; p1 < points.length; p1++) {
+        for (var p2 = p1 + 1; p2 < points.length; p2++) {
+          var dx = points[p1].x - points[p2].x;
+          var dy = points[p1].y - points[p2].y;
+          var dist = Math.hypot(dx, dy);
+          if (dist < 145) {
+            ctx.beginPath();
+            ctx.moveTo(points[p1].x, points[p1].y);
+            ctx.lineTo(points[p2].x, points[p2].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      for (var n = 0; n < 5500; n++) {
+        var nx = Math.random() * 1024;
+        var ny = Math.random() * 1024;
+        var alpha = Math.random() * 0.22;
+        ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha + ')';
+        ctx.fillRect(nx, ny, 2, 2);
+      }
+
+      var saltTexture = new THREE.CanvasTexture(canvas);
+      saltTexture.wrapS = THREE.RepeatWrapping;
+      saltTexture.wrapT = THREE.RepeatWrapping;
+      saltTexture.repeat.set(9, 9);
+
+      var geo = new THREE.PlaneGeometry(3200, 3200, 70, 70);
+      geo.rotateX(-Math.PI / 2);
+
+      var posAttr = geo.attributes.position;
+      for (var v = 0; v < posAttr.count; v++) {
+        var vx = posAttr.getX(v);
+        var vz = posAttr.getZ(v);
+        var elevation = Math.sin(vx * 0.0025) * Math.cos(vz * 0.0025) * 5.5;
+        posAttr.setY(v, elevation);
+      }
+      geo.computeVertexNormals();
+
+      terrainMaterial = new THREE.MeshStandardMaterial({
+        map: saltTexture,
+        roughness: 0.76,
+        metalness: 0.08,
+        bumpMap: saltTexture,
+        bumpScale: 1.8
+      });
+
+      terrainMesh = new THREE.Mesh(geo, terrainMaterial);
+      terrainMesh.receiveShadow = true;
+      scene.add(terrainMesh);
+    }
+
+    // =========================================================================
+    // 綠藻席群落 (Algae Patches)
+    // =========================================================================
+    function createAlgaePatches(count) {
+      var canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      var ctx = canvas.getContext('2d');
+      var grad = ctx.createRadialGradient(128, 128, 8, 128, 128, 124);
+      grad.addColorStop(0, 'rgba(52, 211, 153, 0.95)');
+      grad.addColorStop(0.35, 'rgba(16, 185, 129, 0.78)');
+      grad.addColorStop(0.7, 'rgba(5, 150, 105, 0.38)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 256, 256);
+
+      var algaeTexture = new THREE.CanvasTexture(canvas);
+
+      for (var i = 0; i < count; i++) {
+        var x = (Math.random() - 0.5) * 2200;
+        var z = (Math.random() - 0.5) * 2200;
+        var radius = 45 + Math.random() * 65;
+
+        var mat = new THREE.MeshBasicMaterial({
+          map: algaeTexture,
+          transparent: true,
+          opacity: 0.28,
+          depthWrite: false
+        });
+
+        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), mat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(x, 0.35, z);
+        scene.add(mesh);
+
+        algaePatches.push({
+          x: x,
+          z: z,
+          radius: radius,
+          mesh: mesh,
+          material: mat,
+          bloomLevel: 0.25
+        });
+      }
+    }
+
+    function updateAlgaePatches() {
+      for (var i = 0; i < algaePatches.length; i++) {
+        var ap = algaePatches[i];
+        if (isRaining) {
+          ap.bloomLevel = Math.min(1.0, ap.bloomLevel + 0.015);
+        } else {
+          ap.bloomLevel = Math.max(0.2, ap.bloomLevel - 0.001);
+        }
+
+        var pulse = Math.sin(Date.now() * 0.003 + i) * 0.05;
+        var baseOpacity = THREE.MathUtils.mapLinear(ap.bloomLevel, 0.2, 1.0, 0.25, 0.9);
+        ap.material.opacity = Math.max(0.12, baseOpacity + pulse);
+
+        var scale = 1.0 + (ap.bloomLevel - 0.2) * 0.28;
+        ap.mesh.scale.set(scale, scale, 1);
+      }
+    }
+
+    // =========================================================================
+    // 3D 暴雨粒子系統 (Rain Particle System)
+    // =========================================================================
+    function setupRainSystem() {
+      var rainCount = 2600;
+      rainGeo = new THREE.BufferGeometry();
+      var positions = new Float32Array(rainCount * 6);
+      var velocities = [];
+
+      for (var i = 0; i < rainCount; i++) {
+        var rx = (Math.random() - 0.5) * 2400;
+        var ry = Math.random() * 550;
+        var rz = (Math.random() - 0.5) * 2400;
+        var len = 18 + Math.random() * 24;
+
+        positions[i * 6 + 0] = rx;
+        positions[i * 6 + 1] = ry;
+        positions[i * 6 + 2] = rz;
+
+        positions[i * 6 + 3] = rx - 2.0;
+        positions[i * 6 + 4] = ry - len;
+        positions[i * 6 + 5] = rz - 1.5;
+
+        velocities.push(19 + Math.random() * 15);
+      }
+
+      rainGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      var rainMat = new THREE.LineBasicMaterial({
+        color: 0x93c5fd,
+        transparent: true,
+        opacity: 0.0,
+        linewidth: 1
+      });
+
+      rainParticles = new THREE.LineSegments(rainGeo, rainMat);
+      rainParticles.userData = { velocities: velocities };
+      scene.add(rainParticles);
+    }
+
+    function updateRain() {
+      if (!rainParticles) return;
+      var rainMat = rainParticles.material;
+
+      if (isRaining) {
+        rainMat.opacity = Math.min(0.72, rainMat.opacity + 0.035);
+        var pos = rainGeo.attributes.position.array;
+        var vels = rainParticles.userData.velocities;
+        var count = vels.length;
+
+        for (var i = 0; i < count; i++) {
+          var spd = vels[i];
+          pos[i * 6 + 1] -= spd;
+          pos[i * 6 + 4] -= spd;
+          pos[i * 6 + 0] -= 1.6;
+          pos[i * 6 + 3] -= 1.6;
+
+          if (pos[i * 6 + 4] < 0) {
+            var rx = (Math.random() - 0.5) * 2400;
+            var ry = 450 + Math.random() * 60;
+            var rz = (Math.random() - 0.5) * 2400;
+            var len = 18 + Math.random() * 24;
+
+            pos[i * 6 + 0] = rx;
+            pos[i * 6 + 1] = ry;
+            pos[i * 6 + 2] = rz;
+
+            pos[i * 6 + 3] = rx - 2.0;
+            pos[i * 6 + 4] = ry - len;
+            pos[i * 6 + 5] = rz - 1.5;
+          }
+        }
+        rainGeo.attributes.position.needsUpdate = true;
+
+        rainTimer--;
+        if (rainTimer <= 0) toggleRain();
+      } else {
+        if (rainMat.opacity > 0) {
+          rainMat.opacity = Math.max(0, rainMat.opacity - 0.02);
+        }
+      }
+    }
+
+    // =========================================================================
+    // 地面水氣導引標記 (Guide Beacon Ring)
+    // =========================================================================
+    function setupGuideBeacon() {
+      guideBeacon = new THREE.Group();
+
+      var outerGeo = new THREE.RingGeometry(14, 18, 36);
+      outerGeo.rotateX(-Math.PI / 2);
+      var outerMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.65
+      });
+      var outerMesh = new THREE.Mesh(outerGeo, outerMat);
+      guideBeacon.add(outerMesh);
+
+      var innerGeo = new THREE.RingGeometry(4, 7, 28);
+      innerGeo.rotateX(-Math.PI / 2);
+      var innerMat = new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.85
+      });
+      var innerMesh = new THREE.Mesh(innerGeo, innerMat);
+      guideBeacon.add(innerMesh);
+
+      guideBeacon.position.set(0, 0.45, 0);
+      guideBeacon.visible = false;
+      scene.add(guideBeacon);
+    }
+
+    // =========================================================================
+    // 物理脫殼碎屑 (Shell Shard 3D Particle)
+    // =========================================================================
+    function ShellShard3D(pos, angle, size) {
+      this.size = size;
+      var shape = new THREE.Shape();
+      shape.moveTo(-size * 0.45, -size * 0.2);
+      shape.lineTo(size * 0.5, -size * 0.15);
+      shape.lineTo(size * 0.35, size * 0.3);
+      shape.lineTo(-size * 0.5, size * 0.2);
+      shape.closePath();
+
+      var geom = new THREE.ShapeGeometry(shape);
+      this.mat = new THREE.MeshStandardMaterial({
+        color: 0xfafcff,
+        roughness: 0.25,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.DoubleSide
+      });
+
+      this.mesh = new THREE.Mesh(geom, this.mat);
+      this.mesh.rotation.x = -Math.PI / 2;
+      this.mesh.rotation.z = angle + (Math.random() - 0.5) * 0.5;
+      this.mesh.position.copy(pos);
+      this.mesh.position.y += Math.random() * 4 + 3;
+
+      this.vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 3.5,
+        Math.random() * 4.5 + 2.0,
+        (Math.random() - 0.5) * 3.5
+      );
+      this.rotSpeed = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.25,
+        (Math.random() - 0.5) * 0.25,
+        (Math.random() - 0.5) * 0.25
+      );
+      this.alpha = 1.0;
+      this.decay = 0.009 + Math.random() * 0.007;
+
+      scene.add(this.mesh);
+
+      this.update = function() {
+        this.mesh.position.add(this.vel);
+        this.mesh.rotation.x += this.rotSpeed.x;
+        this.mesh.rotation.y += this.rotSpeed.y;
+        this.mesh.rotation.z += this.rotSpeed.z;
+
+        if (this.mesh.position.y > 0.5) {
+          this.vel.y -= 0.18;
+        } else {
+          this.vel.set(0, 0, 0);
+          this.mesh.position.y = 0.5;
+        }
+
+        this.alpha -= this.decay;
+        this.mat.opacity = Math.max(0, this.alpha);
+      };
+
+      this.isDead = function() {
+        return this.alpha <= 0;
+      };
+
+      this.destroy = function() {
+        scene.remove(this.mesh);
+        this.mesh.geometry.dispose();
+        this.mat.dispose();
+      };
+    }
+
+    // =========================================================================
+    // 白色六角結晶鹽柱 (Salt Column 3D)
+    // =========================================================================
+    function createSaltColumn(x, z, rot) {
+      var height = 18 + Math.random() * 12;
+      var radius = 4.2 + Math.random() * 1.5;
+
+      var geo = new THREE.CylinderGeometry(radius * 0.85, radius, height, 6);
+      var mat = new THREE.MeshPhysicalMaterial({
+        color: 0xf8fafc,
+        roughness: 0.25,
+        metalness: 0.1,
+        clearcoat: 0.8,
+        transmission: 0.2,
+        transparent: true,
+        opacity: 0.95
+      });
+
+      var mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, height / 2, z);
+      mesh.rotation.y = rot;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      saltColumns.push(mesh);
+      if (saltColumns.length > 30) {
+        var old = saltColumns.shift();
+        scene.remove(old);
+        old.geometry.dispose();
+        old.material.dispose();
+      }
+    }
+
+    // =========================================================================
+    // 核心演算法：連續阿基米德螺旋外殼幾何構建 (Continuous Helical Shell)
+    // 徹底告別方塊！生成連續光滑、帶有扁螺絲狀螺旋脊棱的覆瓦狀石膏甲
+    // =========================================================================
+    function createProceduralSpiralShellGeometry(w, h, len, segmentIndex) {
+      var radialSteps = 30; // 圓周切分
+      var lengthSteps = 16; // 縱向切分
+
+      var geo = new THREE.BufferGeometry();
+      var positions = [];
+      var uvs = [];
+      var indices = [];
+
+      // 脊棱參數
+      var pitch = 2.6; // 螺旋纏繞斜率
+      var ridgeBaseAngle = segmentIndex * 0.55; // 節與節之間連續銜接
+      var ridgeHeight = w * 0.36; // 螺旋隆起高度，清晰挺拔
+
+      for (var j = 0; j <= lengthSteps; j++) {
+        var v = j / lengthSteps; // 0 (前) 到 1 (後)
+        var z = (v - 0.5) * len * 1.25;
+
+        // 覆瓦後緣微微擴張，優雅疊合後一節
+        var flare = 1.0 + Math.pow(v, 2.5) * 0.15;
+
+        for (var i = 0; i <= radialSteps; i++) {
+          var u = i / radialSteps; // 0 到 1
+          // 角度涵蓋蠕蛇背側與兩側側面 (避開腹部爬行面)
+          var theta = -Math.PI * 0.18 + u * (Math.PI * 1.36);
+
+          // 基礎橢圓截面半徑
+          var rx = w * 1.08 * flare;
+          var ry = h * 1.15 * flare;
+
+          // 計算螺旋脊棱相位 (Helical phase)
+          var helicalPhase = theta - (v * pitch) - ridgeBaseAngle;
+          // 歸一化到 [-PI, PI]
+          var dPhase = helicalPhase - Math.round(helicalPhase / (Math.PI * 2)) * (Math.PI * 2);
+
+          // 高斯流線型螺旋脊棱剖面 (Smooth crested airfoil ridge)
+          var ridgeDisplacement = ridgeHeight * Math.exp(-(dPhase * dPhase) / 0.12);
+
+          // 脊棱於腹側邊緣自然漸隱，維護流體力學
+          var edgeFade = Math.sin(u * Math.PI);
+          ridgeDisplacement *= Math.pow(edgeFade, 0.6);
+
+          var totalRadiusX = rx + ridgeDisplacement * 0.85;
+          var totalRadiusY = ry + ridgeDisplacement;
+
+          var vx = totalRadiusX * Math.cos(theta);
+          var vy = totalRadiusY * Math.sin(theta);
+          var vz = z;
+
+          positions.push(vx, vy, vz);
+          uvs.push(u, v);
+        }
+      }
+
+      // 建立四邊形雙三角形索引
+      for (var j = 0; j < lengthSteps; j++) {
+        for (var i = 0; i < radialSteps; i++) {
+          var a = j * (radialSteps + 1) + i;
+          var b = (j + 1) * (radialSteps + 1) + i;
+          var c = (j + 1) * (radialSteps + 1) + (i + 1);
+          var d = j * (radialSteps + 1) + (i + 1);
+
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      return geo;
+    }
+
+
+    // =========================================================================
+    // 核心演算法：食蟻獸流線頭顱與微凸永久硬頭盾 (Anteater Cranial Morphology)
+    // 徹底告別磚塊！流線修長錐管狀吻端，硬盾僅微微隆起順應頭部曲面
+    // =========================================================================
+    function createAnteaterSnoutGeometry(baseW, baseH, length) {
+      var rings = 18;
+      var radSegments = 24;
+
+      var geo = new THREE.BufferGeometry();
+      var positions = [];
+      var uvs = [];
+      var indices = [];
+
+      for (var r = 0; r <= rings; r++) {
+        var t = r / rings; // 0 (基部) 到 1 (吻尖)
+        var z = t * length;
+
+        // 食蟻獸經典吻管修長錐狀漸變曲線
+        var widthFactor = (1.0 - 0.72 * Math.pow(t, 0.78));
+        var heightFactor = (1.0 - 0.68 * Math.pow(t, 0.82));
+        var curW = baseW * widthFactor;
+        var curH = baseH * heightFactor;
+
+        // 吻端微微向下彎曲 (Gentle ventral anteater curve)
+        var curYOffset = -Math.pow(t, 1.8) * 3.8;
+
+        for (var s = 0; s <= radSegments; s++) {
+          var u = s / radSegments;
+          var angle = u * Math.PI * 2;
+
+          var vx = curW * Math.cos(angle);
+          var vy = curH * Math.sin(angle) + curYOffset;
+          var vz = z;
+
+          positions.push(vx, vy, vz);
+          uvs.push(u, t);
+        }
+      }
+
+      // 封閉管身索引
+      for (var r = 0; r < rings; r++) {
+        for (var s = 0; s < radSegments; s++) {
+          var a = r * (radSegments + 1) + s;
+          var b = (r + 1) * (radSegments + 1) + s;
+          var c = (r + 1) * (radSegments + 1) + (s + 1);
+          var d = r * (radSegments + 1) + (s + 1);
+
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      // 封閉吻端尖端頂點 (Snout tip dome cap - 光滑圓潤封口)
+      var tipVertexIndex = positions.length / 3;
+      var lastYOffset = -Math.pow(1.0, 1.8) * 3.8;
+      positions.push(0, lastYOffset, length + 1.2);
+      uvs.push(0.5, 1.0);
+
+      var lastRingStart = rings * (radSegments + 1);
+      for (var s = 0; s < radSegments; s++) {
+        indices.push(lastRingStart + s, tipVertexIndex, lastRingStart + s + 1);
+      }
+
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      return geo;
+    }
+
+    function createAnteaterCasqueGeometry(baseW, baseH, length) {
+      // 食蟻獸額頂永久硬殼：僅微微突起 1.3~1.6 單位，順應頭部流線
+      var rings = 14;
+      var radSegments = 18;
+
+      var geo = new THREE.BufferGeometry();
+      var positions = [];
+      var uvs = [];
+      var indices = [];
+
+      for (var r = 0; r <= rings; r++) {
+        var t = r / rings; // 0 到 1 (覆蓋頭部前半至中前段)
+        var z = t * (length * 0.88);
+
+        var widthFactor = (1.0 - 0.70 * Math.pow(t, 0.85));
+        var heightFactor = (1.0 - 0.66 * Math.pow(t, 0.88));
+
+        var curYOffset = -Math.pow(t, 1.8) * 3.8;
+
+        // 僅覆蓋頭頂與上側面 (角度範圍：-0.08 PI 到 1.08 PI)
+        for (var s = 0; s <= radSegments; s++) {
+          var u = s / radSegments;
+          var angle = -Math.PI * 0.08 + u * (Math.PI * 1.16);
+
+          // 邊緣溫潤倒角坡度 (Organic bevel slope at edges)
+          var edgeBevel = Math.sin(u * Math.PI) * Math.sin(Math.min(1.0, t * 1.3) * Math.PI);
+          var curElevation = 0.35 + 1.25 * Math.pow(Math.max(0, edgeBevel), 0.45);
+
+          var curW = baseW * widthFactor + curElevation;
+          var curH = baseH * heightFactor + curElevation;
+
+          // 背側中央帶有極微細的低風阻矢狀中脊 (Dorsal sagittal crest)
+          var crest = Math.sin(u * Math.PI) * 0.45;
+
+          var vx = curW * Math.cos(angle);
+          var vy = (curH + crest) * Math.sin(angle) + curYOffset;
+          var vz = z;
+
+          positions.push(vx, vy, vz);
+          uvs.push(u, t);
+        }
+      }
+
+      for (var r = 0; r < rings; r++) {
+        for (var s = 0; s < radSegments; s++) {
+          var a = r * (radSegments + 1) + s;
+          var b = (r + 1) * (radSegments + 1) + s;
+          var c = (r + 1) * (radSegments + 1) + (s + 1);
+          var d = r * (radSegments + 1) + (s + 1);
+
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      return geo;
+    }
+
+    // =========================================================================
+    // 白蜃蠕蛇 3D 生物類別 (Wyrm3D - 超寫實生物構造)
+    // =========================================================================
+    function Wyrm3D(x, z, isPartner) {
+      this.isPartner = isPartner || false;
+      this.numSegments = this.isPartner ? 32 : 38;
+      this.segmentLength = 11.5;
+      this.phase = 0;
+      this.speed = moveSpeed;
+
+      this.headPos = new THREE.Vector3(x, 0, z);
+      this.headYaw = 0;
+      this.headPitch = 0;
+
+      this.positions = [];
+      this.angles = [];
+      this.radii = [];
+
+      this.segmentMeshes = [];
+      this.shellPlates = [];
+      this.softBodies = [];
+      this.waterPouches = [];
+      this.slimeParticles = [];
+
+      // 主節點群組
+      this.group = new THREE.Group();
+      scene.add(this.group);
+
+      // 頭部發光燈 (受器孔微光)
+      this.headPointLight = new THREE.PointLight(0x22d3ee, 0.45, 160, 2);
+      scene.add(this.headPointLight);
+
+      // 建立各關節節段
+      for (var i = 0; i < this.numSegments; i++) {
+        var pos = new THREE.Vector3(x, 0, z + i * this.segmentLength);
+        this.positions.push(pos);
+        this.angles.push(0);
+
+        var segGroup = new THREE.Group();
+        segGroup.position.copy(pos);
+        this.group.add(segGroup);
+        this.segmentMeshes.push(segGroup);
+
+        var w = this.getBodyWidth(i);
+        this.radii.push(w);
+        var h = w * 0.72;
+        var len = this.segmentLength * 1.35;
+
+        // ---------------------------------------------------------------------
+        // (A) 內層粉嫩柔韌肉體與體表微分生長微血管網絡 (Subcutaneous Differential Growth Vasculature)
+        // ---------------------------------------------------------------------
+        var bellyGeo = new THREE.CylinderGeometry(w * 0.72, w * 0.76, len * 0.95, 20);
+        bellyGeo.rotateX(Math.PI / 2);
+        bellyGeo.scale(1.04, 0.82, 1.0);
+
+        var segTex = sharedVascularTexture.clone();
+        segTex.offset.x = (i * 0.08) % 1.0;
+        segTex.needsUpdate = true;
+
+        var bellyMat = new THREE.MeshStandardMaterial({
+          map: segTex,
+          color: 0xfce7f3,
+          roughness: 0.32,
+          metalness: 0.02,
+          emissive: 0xff1744,
+          emissiveMap: segTex,
+          emissiveIntensity: 0.45
+        });
+
+        var bellyMesh = new THREE.Mesh(bellyGeo, bellyMat);
+        bellyMesh.position.y = h * 0.35;
+        bellyMesh.castShadow = true;
+        bellyMesh.receiveShadow = true;
+        bellyMesh.renderOrder = 1;
+        segGroup.add(bellyMesh);
+        this.softBodies.push(bellyMesh);
+
+        // ---------------------------------------------------------------------
+        // (C) 體內半透明水囊發光核心 (Internal Water Pouch - 中前段)
+        // ---------------------------------------------------------------------
+        if (i >= 5 && i <= 28) {
+          var pouchGeo = new THREE.CylinderGeometry(w * 0.36, w * 0.36, len * 0.85, 12);
+          pouchGeo.rotateX(Math.PI / 2);
+          var pouchMat = new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x0284c7,
+            emissiveIntensity: 0.95,
+            roughness: 0.12,
+            metalness: 0.08,
+            transparent: true,
+            opacity: 0.72
+          });
+          var pouchMesh = new THREE.Mesh(pouchGeo, pouchMat);
+          pouchMesh.position.y = h * 0.36;
+          pouchMesh.renderOrder = 2;
+          segGroup.add(pouchMesh);
+          this.waterPouches.push(pouchMesh);
+        }
+
+        // ---------------------------------------------------------------------
+        // (D) 連續阿基米德螺旋半透明石膏外殼 (Clear Helical Translucent Shell)
+        // 徹底告別方塊！由程序化流線幾何構建，物理光學透射透出粉肉與手指血管
+        // ---------------------------------------------------------------------
+        var plateGeo = createProceduralSpiralShellGeometry(w, h, len, i);
+
+        var plateMat = new THREE.MeshPhysicalMaterial({
+          color: 0xfcfdfd,               // 乳白微晶石膏質地
+          roughness: 0.22,               // 絲滑微礦物光澤
+          metalness: 0.02,
+          clearcoat: 0.88,               // 表面天然蠟質反光
+          clearcoatRoughness: 0.14,
+          transmission: 0.65,            // 關鍵物理透射！讓內部粉嫩肉體與血管溫潤透射
+          ior: 1.48,                     // 石膏與幾丁質天然折射率
+          thickness: 3.2,                // 次表面渾厚乳白散射厚度
+          attenuationColor: 0xffdbe3,    // 光線穿透時呈現溫暖玫瑰色散射
+          attenuationDistance: 8.5,
+          normalMap: sharedShellNormalTexture,
+          normalScale: new THREE.Vector2(0.35, 0.35),
+          transparent: true,
+          opacity: 0.94,
+          side: THREE.DoubleSide
+        });
+
+        var plateMesh = new THREE.Mesh(plateGeo, plateMat);
+        plateMesh.castShadow = true;
+        plateMesh.receiveShadow = true;
+        plateMesh.position.y = h * 0.35;
+        plateMesh.renderOrder = 10;
+        segGroup.add(plateMesh);
+        this.shellPlates.push(plateMesh);
+      }
+
+      // 4. 食蟻獸吻端流線解剖構造配置 (非磚塊樣)
+      this.setupHeadAnatomy();
+
+      // 5. 尾端排鹽腺錐門
+      this.setupTailAnatomy();
+    }
+
+    Wyrm3D.prototype.getBodyWidth = function(index) {
+      var t = index / this.numSegments;
+      var baseW;
+      if (t < 0.12) {
+        baseW = THREE.MathUtils.mapLinear(t, 0, 0.12, 8.5, 15.5);
+      } else if (t < 0.45) {
+        baseW = THREE.MathUtils.mapLinear(t, 0.12, 0.45, 15.5, 18.5);
+      } else {
+        baseW = THREE.MathUtils.mapLinear(t, 0.45, 1.0, 18.5, 3.2);
+      }
+      return baseW * (0.8 + (shellHealth / 100) * 0.25);
+    };
+
+    // 食蟻獸流線頭部解剖構造配置 (超寫實無方塊)
+    Wyrm3D.prototype.setupHeadAnatomy = function() {
+      var headGroup = this.segmentMeshes[0];
+      var headW = this.getBodyWidth(0);
+      var headH = headW * 0.72;
+      var headLen = 25.0;
+
+      // 1. 食蟻獸長流線錐狀頭顱肉體 (Sleek elongated anteater head core)
+      var snoutGeo = createAnteaterSnoutGeometry(headW * 0.74, headH * 0.78, headLen);
+      var snoutTex = sharedVascularTexture.clone();
+      snoutTex.offset.x = 0.5;
+      snoutTex.needsUpdate = true;
+
+      var snoutMat = new THREE.MeshStandardMaterial({
+        map: snoutTex,
+        color: 0xfce7f3,
+        roughness: 0.32,
+        metalness: 0.02,
+        emissive: 0xff1744,
+        emissiveMap: snoutTex,
+        emissiveIntensity: 0.45
+      });
+      this.snoutMesh = new THREE.Mesh(snoutGeo, snoutMat);
+      this.snoutMesh.position.set(0, headH * 0.35, 0);
+      this.snoutMesh.castShadow = true;
+      this.snoutMesh.renderOrder = 1;
+      headGroup.add(this.snoutMesh);
+
+      // 2. 食蟻獸額頂永久硬護盾 (微微突起的永久硬殼，非磚塊樣)
+      var casqueGeo = createAnteaterCasqueGeometry(headW * 0.75, headH * 0.79, headLen);
+
+      // (A) 無殼態時的琥珀角質硬護盾 (Amber Keratinous Cranial Plate)
+      this.amberShieldMat = new THREE.MeshStandardMaterial({
+        color: 0xd97706,
+        roughness: 0.32,
+        metalness: 0.08,
+        emissive: 0x78350f,
+        emissiveIntensity: 0.42
+      });
+      this.amberShieldMesh = new THREE.Mesh(casqueGeo, this.amberShieldMat);
+      this.amberShieldMesh.position.set(0, headH * 0.35, 0);
+      this.amberShieldMesh.castShadow = true;
+      this.amberShieldMesh.renderOrder = 5;
+      this.amberShieldMesh.visible = false;
+      headGroup.add(this.amberShieldMesh);
+
+      // (B) 有殼態時礦化形成的半透乳白石膏螺旋吻甲 (Mineralized Milky Gypsum Casque)
+      this.mineralCasqueMat = new THREE.MeshPhysicalMaterial({
+        color: 0xfcfdfd,
+        roughness: 0.22,
+        metalness: 0.02,
+        clearcoat: 0.92,
+        clearcoatRoughness: 0.12,
+        transmission: 0.62,
+        ior: 1.48,
+        thickness: 2.8,
+        attenuationColor: 0xffdbe3,
+        attenuationDistance: 8.0,
+        normalMap: sharedShellNormalTexture,
+        transparent: true,
+        opacity: 0.95
+      });
+      this.mineralCasqueMesh = new THREE.Mesh(casqueGeo, this.mineralCasqueMat);
+      this.mineralCasqueMesh.position.set(0, headH * 0.35, 0);
+      this.mineralCasqueMesh.castShadow = true;
+      this.mineralCasqueMesh.renderOrder = 10;
+      headGroup.add(this.mineralCasqueMesh);
+
+      // 3. 兩側杏仁狀感濕受器孔 (Sensory Pits - 脈衝發光)
+      var pitGeo = new THREE.SphereGeometry(1.6, 14, 14);
+      pitGeo.scale(1.0, 0.65, 1.4);
+      this.pitMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        emissive: 0x22d3ee,
+        emissiveIntensity: 0.85,
+        roughness: 0.2
+      });
+
+      this.leftPit = new THREE.Mesh(pitGeo, this.pitMat);
+      this.leftPit.position.set(-headW * 0.58, headH * 0.38, headLen * 0.45);
+      headGroup.add(this.leftPit);
+
+      this.rightPit = new THREE.Mesh(pitGeo, this.pitMat);
+      this.rightPit.position.set(headW * 0.58, headH * 0.38, headLen * 0.45);
+      headGroup.add(this.rightPit);
+
+      // 4. 吻端腹側微細刮藻角質褶 (Ventral Radular Micro-Ridges)
+      var radulaGeo = new THREE.CylinderGeometry(headW * 0.22, headW * 0.22, headLen * 0.4, 8);
+      radulaGeo.rotateX(Math.PI / 2);
+      radulaGeo.scale(1.2, 0.4, 1.0);
+      var radulaMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.32 });
+      var radulaMesh = new THREE.Mesh(radulaGeo, radulaMat);
+      radulaMesh.position.set(0, headH * 0.08, headLen * 0.5);
+      headGroup.add(radulaMesh);
+    };
+
+    // 尾部排鹽腺配置
+    Wyrm3D.prototype.setupTailAnatomy = function() {
+      var tailGroup = this.segmentMeshes[this.numSegments - 1];
+      var tailGeo = new THREE.ConeGeometry(3.2, 9, 14);
+      tailGeo.rotateX(-Math.PI / 2);
+      var tailMat = new THREE.MeshStandardMaterial({
+        color: 0xe2e8f0,
+        roughness: 0.35,
+        metalness: 0.1
+      });
+      var tailCone = new THREE.Mesh(tailGeo, tailMat);
+      tailCone.position.set(0, 2.5, -this.segmentLength * 0.7);
+      tailGroup.add(tailCone);
+    };
+
+    // 黏液痕跡微粒
+    Wyrm3D.prototype.addSlimeParticle = function(pos, colHex) {
+      if (this.slimeParticles.length > 160) {
+        var old = this.slimeParticles.shift();
+        scene.remove(old.mesh);
+        old.mesh.geometry.dispose();
+        old.mesh.material.dispose();
+      }
+
+      var geo = new THREE.CircleGeometry(4.5 + Math.random() * 4, 16);
+      geo.rotateX(-Math.PI / 2);
+      var mat = new THREE.MeshBasicMaterial({
+        color: colHex,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false
+      });
+      var mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(pos.x + (Math.random() - 0.5) * 6, 0.35, pos.z + (Math.random() - 0.5) * 6);
+      scene.add(mesh);
+
+      this.slimeParticles.push({ mesh: mesh, material: mat, alpha: 0.55 });
+    };
+
+    Wyrm3D.prototype.updateSlimeParticles = function() {
+      for (var s = this.slimeParticles.length - 1; s >= 0; s--) {
+        var sp = this.slimeParticles[s];
+        sp.alpha -= 0.0035;
+        sp.material.opacity = Math.max(0, sp.alpha);
+        if (sp.alpha <= 0) {
+          scene.remove(sp.mesh);
+          sp.mesh.geometry.dispose();
+          sp.material.dispose();
+          this.slimeParticles.splice(s, 1);
+        }
+      }
+    };
+
+    // =========================================================================
+    // 蠕蛇運動學主更新 (Kinematics & Realistic Update)
+    // =========================================================================
+    Wyrm3D.prototype.update = function() {
+      this.speed = moveSpeed;
+
+      // 1. 計算前進目標點 (滑鼠引導 vs 伴侶並行 vs 自主巡弋)
+      var target = new THREE.Vector3();
+
+      if (this.isPartner && mainWorm) {
+        var leadHead = mainWorm.headPos;
+        var leadYaw = mainWorm.headYaw;
+        var rightVec = new THREE.Vector3(Math.cos(leadYaw), 0, -Math.sin(leadYaw));
+        var forwardVec = new THREE.Vector3(Math.sin(leadYaw), 0, Math.cos(leadYaw));
+
+        target.copy(leadHead)
+          .add(rightVec.clone().multiplyScalar(52))
+          .sub(forwardVec.clone().multiplyScalar(16));
+      } else if (followMouse && hasGuideTarget) {
+        // 核心對應：滑鼠地表引導點 (隨游標方向即時轉向前進)
+        target.copy(guideTarget);
+      } else {
+        var bestPatch = null;
+        var maxBloom = 0;
+        for (var p = 0; p < algaePatches.length; p++) {
+          var patch = algaePatches[p];
+          var d = Math.hypot(this.headPos.x - patch.x, this.headPos.z - patch.z);
+          if (patch.bloomLevel > maxBloom && d < 900) {
+            maxBloom = patch.bloomLevel;
+            bestPatch = patch;
+          }
+        }
+        if (bestPatch && isRaining) {
+          target.set(bestPatch.x, 0, bestPatch.z);
+        } else {
+          var wanderAngle = (Math.sin(Date.now() * 0.00075) + Math.cos(Date.now() * 0.0012)) * Math.PI;
+          target.set(
+            this.headPos.x + Math.sin(wanderAngle) * 350,
+            0,
+            this.headPos.z + Math.cos(wanderAngle) * 350
+          );
+        }
+      }
+
+      // 邊界防禦轉向
+      if (this.headPos.x < -1200) target.x = 300;
+      if (this.headPos.x > 1200) target.x = -300;
+      if (this.headPos.z < -1200) target.z = 300;
+      if (this.headPos.z > 1200) target.z = -300;
+
+      // 2. 轉向計算 (Yaw Steering - 完全符合滑鼠方向)
+      var dx = target.x - this.headPos.x;
+      var dz = target.z - this.headPos.z;
+      var distToTarget = Math.hypot(dx, dz);
+
+      if (distToTarget > 12) {
+        var desiredYaw = Math.atan2(dx, dz);
+        var diff = desiredYaw - this.headYaw;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        this.headYaw += diff * (this.isPartner ? 0.075 : 0.052);
+      }
+
+      // 3. 波動振幅計算 (蛇行 vs 螺旋鑽探)
+      this.phase += waveFreq;
+      var effectiveAmp = (locomotionMode === 'drill') ? waveAmp * 0.35 : waveAmp;
+      var lateralWiggle = Math.sin(this.phase) * THREE.MathUtils.degToRad(effectiveAmp);
+      var actualHeadYaw = this.headYaw + lateralWiggle;
+
+      // 螺旋鑽探模式自轉角累加
+      if (locomotionMode === 'drill') {
+        drillAngle += 0.16;
+      }
+
+      // 鑽地潛伏插值
+      if (isBurrowed) {
+        burrowDepth = Math.min(1.0, burrowDepth + 0.022);
+        this.headPitch = -burrowDepth * 0.28;
+
+        if (Math.random() < 0.28 && shellHealth > 5) {
+          var shedIdx = Math.floor(THREE.MathUtils.randInt(4, this.numSegments - 4));
+          shellShards.push(new ShellShard3D(this.positions[shedIdx], this.angles[shedIdx], this.radii[shedIdx]));
+          shellHealth = Math.max(0, shellHealth - 0.4);
+        }
+      } else {
+        burrowDepth = Math.max(0.0, burrowDepth + (0.0 - burrowDepth) * 0.045);
+        this.headPitch = 0.0;
+      }
+
+      // 4. 頭部位置推進
+      var curSpeed = this.speed;
+      if (this.isPartner && mainWorm) {
+        var dMain = this.headPos.distanceTo(mainWorm.headPos);
+        if (dMain > 70) curSpeed *= 1.18;
+        else if (dMain < 38) curSpeed *= 0.82;
+      }
+
+      var forwardStepX = Math.sin(actualHeadYaw) * curSpeed;
+      var forwardStepZ = Math.cos(actualHeadYaw) * curSpeed;
+      var targetY = -burrowDepth * 18.0;
+
+      this.headPos.x += forwardStepX;
+      this.headPos.z += forwardStepZ;
+      this.headPos.y += (targetY - this.headPos.y) * 0.08;
+
+      this.positions[0].copy(this.headPos);
+      this.angles[0] = actualHeadYaw;
+
+      // 5. 逆向關節牽引與脊椎平滑傳播 (Smooth Inverse Kinematics)
+      for (var i = 1; i < this.numSegments; i++) {
+        var prev = this.positions[i - 1];
+        var curr = this.positions[i];
+
+        var segDx = curr.x - prev.x;
+        var segDz = curr.z - prev.z;
+        var naturalAngle = Math.atan2(segDx, segDz);
+
+        var waveEffect = (locomotionMode === 'drill' ? 0.08 : 0.24);
+        var bodyWave = Math.sin(this.phase - i * 0.24) * THREE.MathUtils.degToRad(effectiveAmp * 0.55);
+        var targetAngle = naturalAngle + bodyWave * waveEffect;
+
+        curr.x = prev.x + Math.sin(targetAngle) * this.segmentLength;
+        curr.z = prev.z + Math.cos(targetAngle) * this.segmentLength;
+        curr.y += (prev.y - curr.y) * 0.16;
+
+        this.angles[i] = Math.atan2(prev.x - curr.x, prev.z - curr.z);
+      }
+
+      // 6. 各節 Transform 更新、生命脈衝與半透透射渲染
+      var now = Date.now() * 0.0018;
+      var shellFactor = hasShell ? (shellHealth / 100) : 0.0;
+
+      for (var k = 0; k < this.numSegments; k++) {
+        var node = this.segmentMeshes[k];
+        node.position.copy(this.positions[k]);
+        node.rotation.set(0, this.angles[k], 0);
+
+        if (k === 0) {
+          node.rotation.x = this.headPitch;
+        } else {
+          var slopeY = this.positions[k - 1].y - this.positions[k].y;
+          node.rotation.x = Math.atan2(slopeY, this.segmentLength);
+        }
+
+        // 螺旋自轉角度
+        if (locomotionMode === 'drill') {
+          node.rotation.z = drillAngle + k * 0.42;
+        }
+
+        var plate = this.shellPlates[k];
+        var belly = this.softBodies[k];
+
+        // 動態生命微血管生理脈動 (Peristaltic differential growth vascular pulse wave)
+        var pulseWave = Math.sin(now * 4.8 - k * 0.32);
+
+        if (hasShell) {
+          plate.visible = true;
+          // 半透石膏甲物理透射率與厚度適應
+          plate.material.opacity = (0.58 + shellFactor * 0.40) * (1.0 - burrowDepth * 0.7);
+          plate.material.transmission = 0.65;
+          plate.scale.set(0.92 + shellFactor * 0.18, 0.92 + shellFactor * 0.18, 1.0);
+
+          // 有殼時：體內微分生長微血管透過半透乳白石膏甲溫潤透射 (白裡透紅)
+          belly.material.color.setHex(0xfcb0c5);
+          belly.material.emissiveIntensity = 0.35 + pulseWave * 0.18;
+        } else {
+          // 無殼交配態：外殼完全脫落，露出高光澤粉嫩肉體與體表微分生長微血管網絡
+          plate.visible = false;
+          belly.material.color.setRGB(0.99, 0.58 + pulseWave * 0.15, 0.73 + pulseWave * 0.1);
+          belly.material.emissiveIntensity = 0.82 + pulseWave * 0.28;
+        }
+      }
+
+      // 食蟻獸吻部體表微血管生理脈動
+      var headPulse = Math.sin(now * 4.8);
+      if (this.snoutMesh && this.snoutMesh.material) {
+        this.snoutMesh.material.emissiveIntensity = hasShell ? (0.35 + headPulse * 0.18) : (0.82 + headPulse * 0.28);
+      }
+
+      // 7. 食蟻獸頭部構造切換 (半透石膏吻甲 vs 琥珀角質硬護盾)
+      if (hasShell) {
+        this.mineralCasqueMesh.visible = true;
+        this.amberShieldMesh.visible = false;
+      } else {
+        this.mineralCasqueMesh.visible = false;
+        this.amberShieldMesh.visible = true; // 展現無殼時永久保護神經的食蟻獸式角質護盾
+      }
+
+      // 感濕受器動態發光
+      var glowIntensity = isRaining ? 3.0 : (followMouse ? 1.6 : 0.45);
+      this.pitMat.emissiveIntensity = glowIntensity;
+      this.headPointLight.position.copy(this.headPos);
+      this.headPointLight.position.y += 6;
+      this.headPointLight.intensity = glowIntensity * 0.8;
+
+      // 8. 綠藻刮食檢測
+      for (var a = 0; a < algaePatches.length; a++) {
+        var ap = algaePatches[a];
+        var distToPatch = Math.hypot(this.headPos.x - ap.x, this.headPos.z - ap.z);
+        if (distToPatch < ap.radius && ap.bloomLevel > 0.25) {
+          waterLevel = Math.min(100, waterLevel + 0.12);
+          if (Math.random() < 0.25) {
+            this.addSlimeParticle(this.headPos, 0x34d399);
+          }
+        }
+      }
+
+      // 自然水分揮發
+      if (!isRaining) {
+        waterLevel = Math.max(10, waterLevel - 0.015);
+      } else {
+        waterLevel = Math.min(100, waterLevel + 0.08);
+      }
+
+      // 留下爬行黏液痕跡
+      if (Math.random() < 0.4 && burrowDepth < 0.6) {
+        var midIdx = Math.floor(this.numSegments * 0.4);
+        this.addSlimeParticle(this.positions[midIdx], hasShell ? 0xbbf7d0 : 0xfbcfe8);
+      }
+
+      this.updateSlimeParticles();
+    };
+
+    // =========================================================================
+    // 伴侶避碰與無穿模約束系統 (Prevent Clipping Between Worms)
+    // =========================================================================
+    function resolveWormCollisions(w1, w2) {
+      if (!w1 || !w2) return;
+
+      var headDist = w1.headPos.distanceTo(w2.headPos);
+      var minHeadDist = 38;
+      if (headDist < minHeadDist && headDist > 0.001) {
+        var pushDir = new THREE.Vector3().subVectors(w2.headPos, w1.headPos).normalize();
+        var overlap = (minHeadDist - headDist) * 0.5;
+        w2.headPos.add(pushDir.clone().multiplyScalar(overlap));
+        w1.headPos.sub(pushDir.clone().multiplyScalar(overlap));
+      }
+
+      for (var i = 0; i < w1.numSegments; i += 2) {
+        var p1 = w1.positions[i];
+        var r1 = w1.radii[i];
+
+        for (var j = 0; j < w2.numSegments; j += 2) {
+          var p2 = w2.positions[j];
+          var r2 = w2.radii[j];
+
+          var dx = p2.x - p1.x;
+          var dz = p2.z - p1.z;
+          var dSq = dx * dx + dz * dz;
+          var minR = (r1 + r2) * 1.08;
+
+          if (dSq < minR * minR && dSq > 0.0001) {
+            var d = Math.sqrt(dSq);
+            var pushMag = (minR - d) * 0.45;
+            var nx = (dx / d) * pushMag;
+            var nz = (dz / d) * pushMag;
+
+            p2.x += nx;
+            p2.z += nz;
+            p1.x -= nx;
+            p1.z -= nz;
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // 攝影機視角與鳥瞰管理 (Camera Control Modes)
+    // =========================================================================
+    function setCameraMode(mode) {
+      cameraMode = mode;
+      var buttons = document.querySelectorAll('.cam-btn');
+      buttons.forEach(function(b) { b.classList.remove('active'); });
+
+      var activeBtn = document.getElementById('cam-' + mode);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (mode === 'top') {
+        // 🛰️ 真・鳥瞰俯視：正上方 90 度直視大地，微偏 Z 軸防止萬向節鎖定
+        var targetPos = mainWorm ? mainWorm.headPos : new THREE.Vector3(0, 0, 0);
+        controls.target.set(targetPos.x, 0, targetPos.z);
+        camera.position.set(targetPos.x, 720, targetPos.z + 0.1);
+        controls.update();
+      } else if (mode === 'head') {
+        if (mainWorm) {
+          var hPos = mainWorm.headPos;
+          var fwd = new THREE.Vector3(Math.sin(mainWorm.headYaw), 0, Math.cos(mainWorm.headYaw));
+          camera.position.copy(hPos).add(fwd.clone().multiplyScalar(65)).add(new THREE.Vector3(0, 24, 0));
+          controls.target.copy(hPos);
+          controls.update();
+        }
+      }
+    }
+
+    function resetCamera() {
+      setCameraMode('free');
+      camera.position.set(240, 270, 410);
+      controls.target.set(0, 8, 0);
+      controls.update();
+    }
+
+    function updateCameraView() {
+      if (!mainWorm) return;
+
+      if (cameraMode === 'follow') {
+        var fwd = new THREE.Vector3(Math.sin(mainWorm.headYaw), 0, Math.cos(mainWorm.headYaw));
+        var targetCamPos = mainWorm.headPos.clone()
+          .sub(fwd.clone().multiplyScalar(210))
+          .add(new THREE.Vector3(0, 85, 0));
+
+        camera.position.lerp(targetCamPos, 0.05);
+        controls.target.lerp(mainWorm.headPos, 0.08);
+      } else if (cameraMode === 'head') {
+        var fwdHead = new THREE.Vector3(Math.sin(mainWorm.headYaw), 0, Math.cos(mainWorm.headYaw));
+        var targetHeadCam = mainWorm.headPos.clone()
+          .add(fwdHead.clone().multiplyScalar(55))
+          .add(new THREE.Vector3(0, 20, 0));
+
+        camera.position.lerp(targetHeadCam, 0.06);
+        controls.target.lerp(mainWorm.headPos, 0.08);
+      } else if (cameraMode === 'top') {
+        var hPos = mainWorm.headPos;
+        controls.target.lerp(new THREE.Vector3(hPos.x, 0, hPos.z), 0.08);
+        camera.position.x = controls.target.x;
+        camera.position.z = controls.target.z + 0.1;
+      }
+    }
+
+    // =========================================================================
+    // 滑鼠即時導引射線求交 (Raycasting & Target Sync)
+    // =========================================================================
+    function onPointerMove(event) {
+      updateGuidePoint(event);
+    }
+
+    function onPointerDown(event) {
+      if (event.button === 0) {
+        updateGuidePoint(event);
+      }
+    }
+
+    function updateGuidePoint(event) {
+      var rect = renderer.domElement.getBoundingClientRect();
+      mouseVec.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseVec.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouseVec, camera);
+      var intersectPoint = new THREE.Vector3();
+
+      if (raycaster.ray.intersectPlane(groundPlane, intersectPoint)) {
+        guideTarget.copy(intersectPoint);
+        hasGuideTarget = true;
+
+        if (guideBeacon && followMouse) {
+          guideBeacon.position.set(intersectPoint.x, 0.45, intersectPoint.z);
+          guideBeacon.visible = true;
+        }
+      }
+    }
+
+    function onWindowResize() {
+      var container = document.getElementById('canvas-container');
+      var w = container.clientWidth || (window.innerWidth - 415);
+      var h = container.clientHeight || window.innerHeight;
+
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    // =========================================================================
+    // 介面交互操作 (UI Actions)
+    // =========================================================================
+    function toggleMouseGuide(enable) {
+      followMouse = enable;
+      document.getElementById('btn-guide-mouse').classList.toggle('active', followMouse);
+      document.getElementById('btn-guide-auto').classList.toggle('active', !followMouse);
+
+      var guideText = document.getElementById('overlay-guide-text');
+      if (guideText) {
+        guideText.innerText = followMouse 
+          ? '移動游標指引蠕蛇前進，游動方向完全隨滑鼠即時對應' 
+          : '自主巡弋漫遊中：蠕蛇正感知地形與藻席自主探索';
+      }
+      if (guideBeacon) guideBeacon.visible = followMouse && hasGuideTarget;
+    }
+
+    function setShellMode(enableShell) {
+      if (hasShell === enableShell) return;
+      hasShell = enableShell;
+
+      document.getElementById('btn-shelled').classList.toggle('active', hasShell);
+      document.getElementById('btn-naked').classList.toggle('active', !hasShell);
+
+      var desc = document.getElementById('morph-desc');
+      var overlay = document.getElementById('overlay-status');
+      var shellVal = document.getElementById('shell-val');
+      var shellBar = document.getElementById('shell-bar');
+
+      if (!hasShell) {
+        if (mainWorm) {
+          for (var i = 0; i < mainWorm.numSegments; i += 2) {
+            shellShards.push(new ShellShard3D(mainWorm.positions[i], mainWorm.angles[i], mainWorm.radii[i]));
+          }
+        }
+        shellHealth = 0;
+        if (shellVal) shellVal.innerText = '0% (脫落光裸)';
+        if (shellBar) shellBar.style.width = '0%';
+        if (desc) desc.innerHTML = '<b>無殼交配態</b>：外殼完全脫落！露出極致光潔粉嫩肉體與<b>遍佈體表的微分生長微血管網絡 (Differential Growth)</b>；吻端顯露永久「琥珀角質護盾」，無懼泥沙摩擦。';
+        if (overlay) overlay.innerText = '🪱 脫殼完成：進入交配軟體狀態 (微分生長微血管網絡顯露)';
+      } else {
+        shellHealth = 100;
+        if (shellVal) shellVal.innerText = '100% (完好)';
+        if (shellBar) shellBar.style.width = '100%';
+        if (desc) desc.innerHTML = '<b>有殼態</b>：覆蓋連續清晰的半透明乳白螺旋石膏甲，次表面物理透射顯露內部粉嫩肉體與<b>體表微分生長微血管網絡 (Differential Growth)</b>；頭部呈食蟻獸流線型，微微隆起永久硬護盾。';
+        if (overlay) overlay.innerText = '🛡️ 造殼完成：半透明乳白螺紋甲，體表微分生長微血管溫潤透射！';
+      }
+    }
+
+    function setLocomotionMode(mode) {
+      locomotionMode = mode;
+      document.getElementById('btn-crawl').classList.toggle('active', mode === 'crawl');
+      document.getElementById('btn-drill').classList.toggle('active', mode === 'drill');
+
+      var overlay = document.getElementById('overlay-status');
+      if (mode === 'drill') {
+        if (overlay) overlay.innerText = '🔩 螺旋鑽探模式：軀體自轉，連續阿基米德螺旋外殼化身神級鑽頭！';
+      } else {
+        if (overlay) overlay.innerText = '🐍 側向蛇行模式：左右大波浪扭動，在濕滑藻毯上流暢滑行。';
+      }
+    }
+
+    function toggleRain() {
+      isRaining = !isRaining;
+      var btn = document.getElementById('btn-rain');
+      var hum = document.getElementById('humidity-val');
+      var water = document.getElementById('water-val');
+      var bar = document.getElementById('water-bar');
+      var overlay = document.getElementById('overlay-status');
+
+      if (isRaining) {
+        rainTimer = 750;
+        btn.classList.add('active');
+        btn.innerHTML = '🌧️ 暴雨狂瀉中 (雨季)';
+        if (hum) hum.innerText = '98.5% (百年暴雨狂瀉中)';
+        waterLevel = 100;
+        if (water) water.innerText = '100% (吸飽水囊)';
+        if (bar) bar.style.width = '100%';
+        if (overlay) overlay.innerText = '🌧️ 超級暴雨降臨：藻席活化，吻部感濕受器啟動！';
+
+        terrainMaterial.roughness = 0.28;
+        terrainMaterial.metalness = 0.35;
+        ambientLight.color.setHex(0x94a3b8);
+        dirLight.intensity = 0.75;
+      } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '🌧️ 降下超級暴雨';
+        if (hum) hum.innerText = '0.8% (極度乾燥)';
+        if (overlay) overlay.innerText = '☀️ 暴雨消退：鹽原重歸炙熱死寂，倒數計時！';
+
+        terrainMaterial.roughness = 0.76;
+        terrainMaterial.metalness = 0.08;
+        ambientLight.color.setHex(0xe8e0d5);
+        dirLight.intensity = 1.4;
+      }
+    }
+
+    function toggleBurrow() {
+      isBurrowed = !isBurrowed;
+      var btn = document.getElementById('btn-burrow');
+      var state = document.getElementById('state-text');
+
+      if (isBurrowed) {
+        btn.classList.add('active');
+        btn.innerHTML = '⛏️ 鑽出地表';
+        state.innerText = '潛入地底休眠 (甲片摩擦脫落中)';
+        state.style.color = '#fbbf24';
+      } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '⛏️ 鑽地潛伏 (脫殼)';
+        state.innerText = '地表進食與巡弋';
+        state.style.color = '#34d399';
+      }
+    }
+
+    function triggerSaltExtrusion() {
+      if (!mainWorm) return;
+      var tailPos = mainWorm.positions[mainWorm.numSegments - 1];
+      var tailAng = mainWorm.angles[mainWorm.numSegments - 1];
+
+      createSaltColumn(
+        tailPos.x - Math.sin(tailAng) * 14,
+        tailPos.z - Math.cos(tailAng) * 14,
+        tailAng
+      );
+
+      var overlay = document.getElementById('overlay-status');
+      if (overlay) overlay.innerText = '⚡ 排鹽腺已觸發：自尾端排泄出固態高純度六角鹽柱！';
+    }
+
+    function feedAndRegrow() {
+      shellHealth = 100;
+      var shellVal = document.getElementById('shell-val');
+      var shellBar = document.getElementById('shell-bar');
+      if (shellVal) shellVal.innerText = '100% (吞沙新生)';
+      if (shellBar) shellBar.style.width = '100%';
+
+      if (!hasShell) {
+        setShellMode(true);
+      } else {
+        var overlay = document.getElementById('overlay-status');
+        if (overlay) overlay.innerText = '🏜️ 吞沙修復：吸收石膏與矽質，半透明乳白石膏甲晶體增厚！';
+      }
+
+      if (mainWorm) {
+        for (var i = 0; i < 20; i++) {
+          var segIdx = Math.floor(Math.random() * mainWorm.numSegments);
+          mainWorm.addSlimeParticle(mainWorm.positions[segIdx], 0xffffff);
+        }
+      }
+    }
+
+    function togglePartner() {
+      showPartner = !showPartner;
+      var btn = document.getElementById('btn-mate');
+      if (btn) btn.classList.toggle('active', showPartner);
+
+      if (showPartner) {
+        partnerWorm = new Wyrm3D(mainWorm.headPos.x + 50, mainWorm.headPos.z - 20, true);
+        var overlay = document.getElementById('overlay-status');
+        if (overlay) overlay.innerText = '👫 尋獲伴侶／無性分裂！雙蟲並行同游，防穿模避碰系統已啟動！';
+      } else {
+        if (partnerWorm) {
+          scene.remove(partnerWorm.group);
+          scene.remove(partnerWorm.headPointLight);
+          partnerWorm = null;
+        }
+        var overlay = document.getElementById('overlay-status');
+        if (overlay) overlay.innerText = '🍂 繁衍完成／獨自游動：分道揚鑣各自鑽入深層地府。';
+      }
+    }
+
+    function updateSliders() {
+      moveSpeed = parseFloat(document.getElementById('slider-speed').value);
+      waveAmp = parseFloat(document.getElementById('slider-amp').value);
+      waveFreq = parseFloat(document.getElementById('slider-freq').value);
+
+      document.getElementById('speed-display').innerText = moveSpeed.toFixed(1);
+      document.getElementById('amp-display').innerText = waveAmp;
+      document.getElementById('freq-display').innerText = waveFreq.toFixed(2);
+    }
+
+    function updateUI() {
+      document.getElementById('water-val').innerText = Math.round(waterLevel) + '%';
+      document.getElementById('water-bar').style.width = waterLevel + '%';
+
+      document.getElementById('shell-val').innerText = Math.round(shellHealth) + '%';
+      document.getElementById('shell-bar').style.width = shellHealth + '%';
+    }
+
+    // =========================================================================
+    // 主渲染與動畫循環 (Main Animation Loop)
+    // =========================================================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 1. 更新軌道控制器
+      controls.update();
+
+      // 2. 視角跟隨計算
+      updateCameraView();
+
+      // 3. 更新主蟲動態
+      if (mainWorm) {
+        mainWorm.update();
+      }
+
+      // 4. 更新伴侶同游與防穿模避碰
+      if (showPartner && partnerWorm) {
+        partnerWorm.update();
+        resolveWormCollisions(mainWorm, partnerWorm);
+      }
+
+      // 5. 更新綠藻席
+      updateAlgaePatches();
+
+      // 6. 更新暴雨
+      updateRain();
+
+      // 7. 更新脫殼物理碎片
+      for (var s = shellShards.length - 1; s >= 0; s--) {
+        shellShards[s].update();
+        if (shellShards[s].isDead()) {
+          shellShards[s].destroy();
+          shellShards.splice(s, 1);
+        }
+      }
+
+      // 8. 地面引導光圈動態脈衝呼吸
+      if (guideBeacon && guideBeacon.visible) {
+        var beaconScale = 1.0 + Math.sin(Date.now() * 0.007) * 0.12;
+        guideBeacon.scale.set(beaconScale, beaconScale, 1);
+      }
+
+      // 9. 更新數值面板
+      updateUI();
+
+      // 10. 渲染畫面
+      renderer.render(scene, camera);
+    }
+
+    // 啟動程式
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
