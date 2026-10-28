@@ -1,0 +1,2455 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>白蜃蠕蛇 (Gypsochiton serpentinus) - 超寫實 3D 仿生動態模擬器</title>
+  <!-- 本地與 CDN 雙重支援，離線或連線均可完美運行 -->
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="OrbitControls.js"></script>
+  <script>
+    if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: #090b0e;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
+      width: 100vw;
+    }
+    #canvas-container {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      background: #14110e;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* 3D 畫面浮動提示 */
+    .viewport-overlay {
+      position: absolute;
+      top: 18px;
+      left: 20px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      z-index: 5;
+    }
+    .view-chip {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.76rem;
+      color: #94a3b8;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+    }
+    .view-chip strong {
+      color: #38bdf8;
+    }
+
+    /* 控制側欄 */
+    #ui-panel {
+      width: 415px;
+      min-width: 385px;
+      height: 100%;
+      background: rgba(15, 20, 28, 0.98);
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      overflow-y: auto;
+      box-shadow: -12px 0 35px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+    #ui-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    #ui-panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 3px;
+    }
+    #ui-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    h1 {
+      font-size: 1.30rem;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+    .species-tag {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      font-style: italic;
+      margin-bottom: 4px;
+    }
+    .badge-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(110, 231, 183, 0.15);
+      color: #6ee7b7;
+      border: 1px solid rgba(110, 231, 183, 0.35);
+      font-weight: 500;
+    }
+    .mode-3d-badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      font-weight: 600;
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+
+    .section {
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 11px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .section-title {
+      font-size: 0.81rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 4px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.79rem;
+      color: #cbd5e1;
+    }
+    .stat-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    .btn-group-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+    button {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: #f1f5f9;
+      font-size: 0.77rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+    button.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+      color: #fff;
+    }
+    button.pink-mode.active {
+      background: #be185d;
+      border-color: #f472b6;
+      box-shadow: 0 0 12px rgba(244, 114, 182, 0.45);
+      color: #fff;
+    }
+    button.deluge-btn.active {
+      background: #0891b2;
+      border-color: #22d3ee;
+      box-shadow: 0 0 14px rgba(34, 211, 238, 0.5);
+      color: #fff;
+    }
+    button.cam-btn.active {
+      background: #4338ca;
+      border-color: #818cf8;
+      box-shadow: 0 0 10px rgba(129, 140, 248, 0.45);
+      color: #fff;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.76rem;
+      color: #94a3b8;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+    }
+    input[type=range] {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+    }
+
+    .hint-box {
+      font-size: 0.73rem;
+      color: #94a3b8;
+      line-height: 1.5;
+      background: rgba(15, 23, 42, 0.5);
+      border-left: 3px solid #38bdf8;
+      padding: 7px 10px;
+      border-radius: 0 6px 6px 0;
+    }
+    .hint-box b {
+      color: #e2e8f0;
+    }
+
+    .morph-info-tag {
+      font-size: 0.72rem;
+      padding: 7px 10px;
+      border-radius: 6px;
+      background: rgba(244, 114, 182, 0.12);
+      color: #f472b6;
+      border: 1px solid rgba(244, 114, 182, 0.28);
+      line-height: 1.48;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D 渲染畫布容器 -->
+  <div id="canvas-container">
+    <div class="viewport-overlay">
+      <div class="view-chip">
+        <span>🎮 3D 視角操作：</span>
+        <strong>左鍵拖曳旋轉</strong> | <strong>滾輪平滑縮放</strong> | <strong>右鍵平移</strong>
+      </div>
+      <div class="view-chip" id="target-chip">
+        <span>🎯 滑鼠水氣導引：</span>
+        <strong id="overlay-guide-text">移動游標指引蠕蛇前進，游動方向完全隨滑鼠即時對應</strong>
+      </div>
+      <div class="view-chip" id="state-chip">
+        <span>✨ 當前狀態：</span>
+        <strong id="overlay-status" style="color: #6ee7b7;">半透明乳白螺紋甲・體表微分生長微血管透射脈衝</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- 側邊控制面板 -->
+  <div id="ui-panel">
+    <div>
+      <h1>白蜃蠕蛇 <span class="mode-3d-badge">寫實仿生 3D 引擎</span></h1>
+      <div class="species-tag">Gypsochiton serpentinus</div>
+      <div class="badge-row">
+      <span class="mode-3d-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.45); font-weight: 600;">⚡ Rust WASM 微分生長微血管</span>
+        <span class="badge">人類滅絕5000年後</span>
+        <span class="badge" style="background: rgba(244, 114, 182, 0.15); color: #f472b6; border-color: rgba(244, 114, 182, 0.3);">超大陸內陸鹽原</span>
+        <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.35);">半透明乳白石膏甲</span>
+      </div>
+    </div>
+
+    <!-- 生理生態即時指數 -->
+    <div class="section">
+      <div class="section-title">生理生態狀態 (Physiology)</div>
+      
+      <div class="stat-row">
+        <span>當前生理階段：</span>
+        <span id="state-text" class="stat-value" style="color: #34d399;">地表進食與巡弋</span>
+      </div>
+
+      <div>
+        <div class="stat-row">
+          <span>體內儲水囊存量：</span>
+          <span id="water-val" class="stat-value">88%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="water-bar" class="progress-bar-fill" style="width: 88%;"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="stat-row">
+          <span>半透石膏甲厚度：</span>
+          <span id="shell-val" class="stat-value">100% (完好)</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="shell-bar" class="progress-bar-fill" style="width: 100%; background: linear-gradient(90deg, #fbcfe8, #ffffff);"></div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <span>吻端受器濕度偵測：</span>
+        <span id="humidity-val" class="stat-value" style="color: #38bdf8;">0.8% (極度乾燥)</span>
+      </div>
+    </div>
+
+    <!-- 滑鼠引導模式切換 -->
+    <div class="section">
+      <div class="section-title">滑鼠導引互動 (Mouse Tracking)</div>
+      <div class="btn-group">
+        <button id="btn-guide-mouse" class="active" onclick="toggleMouseGuide(true)">
+          🎯 滑鼠即時導引 (跟隨游標)
+        </button>
+        <button id="btn-guide-auto" onclick="toggleMouseGuide(false)">
+          🧭 自主巡弋漫遊
+        </button>
+      </div>
+      <div class="hint-box">
+        💡 <b>滑鼠互動對應</b>：游標在 3D 地面上移動時，會投射<b>「動態水氣誘導光圈」</b>。鼠標往上移，蠕蛇往前游動；鼠標往左/右/後移，蠕蛇朝對應方向轉向跟隨，完全與滑鼠移動方向同步！
+      </div>
+    </div>
+
+    <!-- 型態模式切換 (有殼 vs 無殼交配) -->
+    <div class="section">
+      <div class="section-title">型態外觀切換 (Morphology)</div>
+      <div class="btn-group">
+        <button id="btn-shelled" class="active" onclick="setShellMode(true)">
+          🛡️ 有殼態 (白裡透紅)
+        </button>
+        <button id="btn-naked" class="pink-mode" onclick="setShellMode(false)">
+          🪱 無殼交配態 (粉嫩)
+        </button>
+      </div>
+      <div id="morph-desc" class="morph-info-tag">
+        <b>有殼態</b>：覆蓋連續清晰的半透明乳白螺旋石膏甲，次表面物理透射顯露內部粉嫩肉體與<b>體表微分生長微血管網絡 (Differential Growth)</b>；頭部呈食蟻獸流線型，微微隆起永久硬護盾。
+      </div>
+    </div>
+
+    <!-- 運動模式切換 (蛇行 vs 螺旋鑽地) -->
+    <div class="section">
+      <div class="section-title">運動動力學切換 (Locomotion)</div>
+      <div class="btn-group">
+        <button id="btn-crawl" class="active" onclick="setLocomotionMode('crawl')">
+          🐍 側向蛇行滑動
+        </button>
+        <button id="btn-drill" onclick="setLocomotionMode('drill')">
+          🔩 阿基米德螺旋鑽探
+        </button>
+      </div>
+      <div class="hint-box">
+        💡 <b>模式說明</b>：蛇行時左右產生側向波動滑行；螺旋鑽探時，身體沿軸向自轉，外殼清晰平滑的阿基米德連續螺旋棱線如巨型鑽頭切入岩鹽！
+      </div>
+    </div>
+
+    <!-- 特殊生態行為事件 -->
+    <div class="section">
+      <div class="section-title">特殊生態事件 (Behavior & Ecology)</div>
+      <div class="btn-group">
+        <button id="btn-rain" class="deluge-btn" onclick="toggleRain()">
+          🌧️ 降下超級暴雨
+        </button>
+        <button id="btn-burrow" onclick="toggleBurrow()">
+          ⛏️ 鑽地潛伏 (脫殼)
+        </button>
+      </div>
+      <div class="btn-group">
+        <button id="btn-salt" onclick="triggerSaltExtrusion()">
+          🧂 尾端排泄鹽柱
+        </button>
+        <button id="btn-feed" onclick="feedAndRegrow()">
+          🏜️ 吞沙修復外殼
+        </button>
+      </div>
+      <div class="btn-group">
+        <button id="btn-mate" onclick="togglePartner()">
+          👫 伴侶偶遇／分裂同游
+        </button>
+        <button id="btn-cam-reset" onclick="resetCamera()">
+          🔄 重置鏡頭預設
+        </button>
+      </div>
+      <div class="hint-box">
+        👫 <b>伴侶同游機制</b>：兩隻白蜃蠕蛇具備<b>物理球體彈性排斥與並行跟隨演算法</b>，保持並行優雅同游，<b>絕不互相碰撞或穿模重疊</b>。
+      </div>
+    </div>
+
+    <!-- 運動參數微調 -->
+    <div class="section">
+      <div class="section-title">即時動力參數 (Kinematics Tuning)</div>
+      
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>前進游動速度 (Speed)</span>
+          <span id="speed-display">3.2</span>
+        </div>
+        <input type="range" id="slider-speed" min="1.0" max="6.5" step="0.2" value="3.2" oninput="updateSliders()">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>側向波動振幅 (Amplitude)</span>
+          <span id="amp-display">25</span>
+        </div>
+        <input type="range" id="slider-amp" min="8" max="45" value="25" oninput="updateSliders()">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>波浪擺動頻率 (Frequency)</span>
+          <span id="freq-display">0.11</span>
+        </div>
+        <input type="range" id="slider-freq" min="0.04" max="0.22" step="0.01" value="0.11" oninput="updateSliders()">
+      </div>
+    </div>
+
+    <!-- 3D 鏡頭視角控制 -->
+    <div class="section">
+      <div class="section-title">3D 攝影機視角 (Camera Views)</div>
+      <div class="btn-group-3">
+        <button id="cam-free" class="cam-btn active" onclick="setCameraMode('free')">
+          🎥 自由環繞
+        </button>
+        <button id="cam-follow" class="cam-btn" onclick="setCameraMode('follow')">
+          🐍 追尾跟隨
+        </button>
+        <button id="cam-top" class="cam-btn" onclick="setCameraMode('top')">
+          🛰️ 真・鳥瞰俯視
+        </button>
+      </div>
+      <div class="btn-group" style="margin-top: 4px;">
+        <button id="cam-head" class="cam-btn" onclick="setCameraMode('head')">
+          🔍 食蟻獸吻端特寫
+        </button>
+        <button class="cam-btn" onclick="resetCamera()">
+          🎯 鏡頭回正居中
+        </button>
+      </div>
+      <div class="hint-box" style="margin-top: 2px;">
+        🛰️ <b>真正鳥瞰保證</b>：由天空直視大地（90° 垂直俯視），清晰俯瞰蠕蛇在多邊形鹽漠上優雅滑行，<b>絕非地底仰視</b>！
+      </div>
+    </div>
+
+    <!-- 解剖構造特徵與設定對應說明 -->
+    <div class="section">
+      <div class="section-title">超寫實生物解剖特徵 (Realistic Anatomy)</div>
+      <div style="font-size: 0.74rem; color: #cbd5e1; line-height: 1.6; display: flex; flex-direction: column; gap: 6px;">
+        <div>🔹 <b>半透明乳白石膏甲 (白裡透紅)</b>：採用 MeshPhysicalMaterial 物理光學透射 (Transmission) 與微晶石膏次表面散射，內部粉嫩肉體與微血管清晰透射。</div>
+        <div>🔹 <b>清晰連續螺旋造型 (非方塊)</b>：依循阿基米德螺旋線以平滑流線連續曲面建模，脊棱如深海扁螺絲般環繞軀幹，螺旋鑽探時真實破土自轉。</div>
+        <div>🔹 <b>體表微分生長鮮紅微血管網 (Rust WASM Differential Growth)</b>：由 <b>Rust WebAssembly</b> 高性能物理演算法驅動，以微分生長 (Differential Growth) 於體表生成遍布、肉眼清晰可見的鮮紅色細小微血管網絡，深嵌於體表組織隨生理脈動微搏動。</div>
+        <div>🔹 <b>食蟻獸式流線頭顱與微凸硬殼</b>：非磚塊突兀構造！吻端為修長平滑錐形，頭部永久硬殼僅微微凸起，順應顱頂優雅曲面服貼延伸。</div>
+        <div>🔹 <b>尾端排鹽腺錐門</b>：過量鹽分以高純度六角柱結晶形式定期排泄於鹽漠地表。</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // =========================================================================
+    // 全域變數與系統狀態
+    // =========================================================================
+    var scene, camera, renderer, controls;
+    var mainWorm = null;
+    var partnerWorm = null;
+    var showPartner = false;
+
+    var terrainMesh, terrainMaterial;
+    var algaePatches = [];
+    var shellShards = [];
+    var saltColumns = [];
+    var rainParticles, rainGeo;
+    var guideBeacon;
+
+    // 生態與行為狀態
+    var hasShell = true;               // true: 有殼態 (白裡透紅), false: 無殼交配態 (粉嫩)
+    var locomotionMode = 'crawl';      // 'crawl' (蛇行) 或 'drill' (螺旋自轉鑽探)
+    var isRaining = false;             // 是否超級暴雨
+    var rainTimer = 0;
+    var isBurrowed = false;            // 是否鑽入地底潛伏
+    var burrowDepth = 0.0;
+    var followMouse = true;            // 是否跟隨滑鼠即時導引
+
+    // 生理數值
+    var waterLevel = 88.0;
+    var shellHealth = 100.0;
+
+    // 動態運動參數
+    var moveSpeed = 3.2;
+    var waveAmp = 25.0;
+    var waveFreq = 0.11;
+    var drillAngle = 0.0;
+
+    // 攝影機模式
+    var cameraMode = 'free'; // 'free', 'follow', 'top', 'head'
+
+    // 滑鼠地表射線導引
+    var raycaster = new THREE.Raycaster();
+    var mouseVec = new THREE.Vector2();
+    var groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    var guideTarget = new THREE.Vector3(0, 0, 0);
+    var hasGuideTarget = false;
+
+    // 光源物件
+    var dirLight, ambientLight, skyFillLight;
+
+// 程序化共用紋理
+    var sharedVascularTexture = null;
+    var sharedShellNormalTexture = null;
+
+    // =========================================================================
+    // Rust WebAssembly 高性能運算模組整合 (Differential Growth & Kinematics)
+    // 包含嵌入式 Base64 WASM 二進位載入器，本機 file:// 或任何瀏覽器皆能 100% 順暢秒開
+    // =========================================================================
+    var RUST_WASM_BASE64 = "AGFzbQEAAAABdBFgAn9/AGADf39/AX9gAn9/AX9gAX8AYAR/f39/AGAFf39/f38AYAl/fX19fX19fX8Bf2ABfwF/YAABf2ADf39/AGAEf39/fwF/YAAAYAZ/f39/f38AYAZ/f39/f38Bf2AFf39/f38Bf2ABfQF9YAJ9fQF9A1lYAwMEBQMDAwMDBgcICAgIAgkKCwIDAwUDAwMDDAUAAAICBwsJAwoAAAMAAAAHAAACAAAAAgIBAAAAAQkAAAsJAgoJCQ0CDgEBAgMCAwIJAwMNDw8PEBAPDwQFAXABFRUFAwEAEQYJAX8BQYCAwAALB58BBwZtZW1vcnkCAA9jb21wdXRlX3dvcm1faWsACShnZW5lcmF0ZV9kaWZmZXJlbnRpYWxfZ3Jvd3RoX3Zhc2N1bGF0dXJlAAoRZ2V0X2lrX291dHB1dF9sZW4ACxFnZXRfaWtfb3V0cHV0X3B0cgAMFWdldF9yZXN1bHRfYnVmZmVyX2xlbgANFWdldF9yZXN1bHRfYnVmZmVyX3B0cgAOCRoBAEEBCxQdFDU0OTMyMDEVLzc2OC4tSEpMPwrV+gFY1QEBBH8CQAJAIABFDQAgACgCACEBIABBADYCACABQQFxRQ0AIAAoAhAhASAAKAIMIQIgACgCCCEDIAAoAgQhAAwBC0EEIQJBACEBQQAhA0EAIQALAkACQAJAQQAtAIyRwIAAQX9qDgIAAgELQQBBAjoAjJHAgABBACgCgJHAgAAiBEUNAEEAKAKEkcCAACAEQQJ0QQQQkICAgAALQQBBAToAjJHAgABBACABNgKIkcCAAEEAIAI2AoSRwIAAQQAgAzYCgJHAgABBACAANgL8kMCAAA8LAAvVAQEEfwJAAkAgAEUNACAAKAIAIQEgAEEANgIAIAFBAXFFDQAgACgCECEBIAAoAgwhAiAAKAIIIQMgACgCBCEADAELQQQhAkEAIQFBACEDQQAhAAsCQAJAAkBBAC0AoJHAgABBf2oOAgACAQtBAEECOgCgkcCAAEEAKAKUkcCAACIERQ0AQQAoApiRwIAAIARBAnRBBBCQgICAAAtBAEEBOgCgkcCAAEEAIAE2ApyRwIAAQQAgAjYCmJHAgABBACADNgKUkcCAAEEAIAA2ApCRwIAADwsAC6EBAQF/I4CAgIAAQRBrIgQkgICAgAACQCACIAFqIgEgAk8NAEEAQQAQu4CAgAAACyAEQQRqIAAoAgAiAiAAKAIEIAEgAkEBdCICIAEgAksbIgJBBCACQQRLGyICIAMQg4CAgAACQCAEKAIEQQFHDQAgBCgCCCAEKAIMELuAgIAAAAsgBCgCCCEBIAAgAjYCACAAIAE2AgQgBEEQaiSAgICAAAuzAQICfwF+QQEhBUEEIQYCQAJAIAStIAOtfiIHQiCIp0UNAEEAIQMMAQsCQCAHpyIDQfz///8HTQ0AQQAhAwwBCwJAAkACQAJAIAFFDQAgAiAEIAFsQQQgAxCRgICAACEGDAELAkAgAw0AQQQhBgwCCxCSgICAACADQQQQj4CAgAAhBgsgBg0AIABBBDYCBAwBCyAAIAY2AgRBACEFC0EIIQYLIAAgBmogAzYCACAAIAU2AgALfQEDfyOAgICAAEEQayIBJICAgIAAIAFBBGogACgCACICIAAoAgQgAkEBdCICQQQgAkEESxsiAkEcEIOAgIAAAkAgASgCBEEBRw0AIAEoAgggASgCDBC7gICAAAALIAEoAgghAyAAIAI2AgAgACADNgIEIAFBEGokgICAgAALfQEDfyOAgICAAEEQayIBJICAgIAAIAFBBGogACgCACICIAAoAgQgAkEBdCICQQQgAkEESxsiAkEUEIOAgIAAAkAgASgCBEEBRw0AIAEoAgggASgCDBC7gICAAAALIAEoAgghAyAAIAI2AgAgACADNgIEIAFBEGokgICAgAALfQEDfyOAgICAAEEQayIBJICAgIAAIAFBBGogACgCACICIAAoAgQgAkEBdCICQQQgAkEESxsiAkEQEIOAgIAAAkAgASgCBEEBRw0AIAEoAgggASgCDBC7gICAAAALIAEoAgghAyAAIAI2AgAgACADNgIEIAFBEGokgICAgAALfQEDfyOAgICAAEEQayIBJICAgIAAIAFBBGogACgCACICIAAoAgQgAkEBdCICQQQgAkEESxsiAkEIEIOAgIAAAkAgASgCBEEBRw0AIAEoAgggASgCDBC7gICAAAALIAEoAgghAyAAIAI2AgAgACADNgIEIAFBEGokgICAgAALfQEDfyOAgICAAEEQayIBJICAgIAAIAFBBGogACgCACICIAAoAgQgAkEBdCICQQQgAkEESxsiAkEEEIOAgIAAAkAgASgCBEEBRw0AIAEoAgggASgCDBC7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NgKckMCAAEEAQYiQwIAANgKQkMCAAEEAQZiQwIAANgKkkMCAAEEAQZCQwIAANgKYkMCAAEEAQaCQwIAANgKskMCAAEEAQZiQwIAANgKgkMCAAEEAQaiQwIAANgK0kMCAAEEAQaCQwIAANgKokMCAAEEAQbCQwIAANgK8kMCAAEEAQaiQwIAANgKwkMCAAEEAQbiQwIAANgLEkMCAAEEAQbCQwIAANgK4kMCAAEEAIAZBD2pBeHEiAEF4aiICNgLckMCAAEEAQbiQwIAANgLAkMCAAEEAIAYgAGsgCUFYaiIAakEIaiIINgLUkMCAACACIAhBAXI2AgQgBiAAakEoNgIEQQBBgICAATYC6JDAgAALQQAhAkEAKALUkMCAACIAIANNDQBBACAAIANrIgI2AtSQwIAAQQBBACgC3JDAgAAiACADaiIINgLckMCAACAIIAJBAXI2AgQgACADQQNyNgIEIABBCGohAgsgAUEQaiSAgICAACACCwMAAAtwAQJ/AkACQCAAQXxqKAIAIgNBeHEiBEEEQQggA0EDcSIDGyABakkNAAJAIANFDQAgBCABQSdqSw0CCyAAEKSAgIAADwtBjIXAgABBLkG8hcCAABC+gICAAAALQcyFwIAAQS5B/IXAgAAQvoCAgAAAC54HAQR/IABBeGoiASAAQXxqKAIAIgJBeHEiAGohAwJAAkAgAkEBcQ0AIAJBAnFFDQEgASgCACICIABqIQACQCABIAJrIgFBACgC2JDAgABHDQAgAygCBEEDcUEDRw0BQQAgADYC0JDAgAAgAyADKAIEQX5xNgIEIAEgAEEBcjYCBCADIAA2AgAPCyABIAIQpoCAgAALAkACQAJAAkACQAJAAkACQCADKAIEIgJBAnENACADQQAoAtyQwIAARg0CIANBACgC2JDAgABGDQUgAyACQXhxIgIQpoCAgAAgASACIABqIgBBAXI2AgQgASAAaiAANgIAIAFBACgC2JDAgABHDQFBACAANgLQkMCAAA8LIAMgAkF+cTYCBCABIABBAXI2AgQgASAAaiAANgIACyAAQYACSQ0BIAEgABCrgICAAEEAIQFBAEEAKALwkMCAAEF/aiIANgLwkMCAACAARQ0CDAYLQQAgATYC3JDAgABBAEEAKALUkMCAACAAaiIANgLUkMCAACABIABBAXI2AgQCQCABQQAo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AiAAKAIAIAAoAggiA2tNDQAgACADIAJBAUEBEJaAgIAAIAAoAgghAwwBCyACRQ0BCyACRQ0AIAAoAgQgA2ogASAC/AoAAAsgACADIAJqNgIIQQALoQECAn8BfiOAgICAAEEgayICJICAgIAAAkAgASgCAEF/Rw0AIAEoAgwhAyACQQA2AhwgAkKAgICAEDcCFCACQRRqQZyEwIAAIAMoAgAiAygCACADKAIEEMCAgIAAGiACIAIoAhwiAzYCECACIAIpAhQiBDcDCCABIAM2AgggASAENwIACyAAQdiGwIAANgIEIAAgATYCACACQSBqJICAgIAAC4UCAgJ/AX4jgICAgABBIGsiAiSAgICAAAJAIAEoAgBBf0cNACABKAIMIQMgAkEANgIYIAJCgICAgBA3AhAgAkEQakGchMCAACADKAIAIgMoAgAgAygCBBDAgICAABogAiACKAIYIgM2AgggAiACKQIQIgQ3AwAgASADNgIIIAEgBDcCAAsgASgCCCEDIAFBADYCCCABKQIAIQQgAUKAgICAEDcCACACIAM2AhggAiAENwMQEJKAgIAAAkBBDEEEEI+AgIAAIgENAEEEQQwQvICAgAAACyABIAIoAhg2AgggASACKQMQNwIAIABB2IbAgAA2AgQgACABNgIAIAJBIGokgICAgAALCQAgAEEANgIACxQAIABBnITAgAAgASACEMCAgIAAC8ABAQJ/AkACQCACRQ0AQQAtAMGRwIAAIQNBAEEBOgDBkcCAAEHQkcCAACEEQYCAxIAAQdCRwIAATQ0AIAJBgIDEgABB0JHAgABrSw0AIANB/wFxDQBBgIDEgABB0JHAgABrIQIMAQtBACEEAkAgAkEQdiACQf//A3FBAEdqIgJAACIDQX9HDQBBACECDAELIAJBEHQiAkFwaiACIANBEHQiBEEAIAJrRhshAgsgAEEANgIIIAAgAjYCBCAAIAQ2AgALHAACQCAARQ0AIAAgARC8gICAAAALEL2AgIAAAAsNACABIAAQqYCAgAAACxcAQaCHwIAAQSNBtIfAgAAQwYCAgAAACxUAIAAgAUEBdEEBciACEMGAgIAAAAsUACABIAAoAgAgACgCBBDGgICAAAv0BAEIfyOAgICAAEEQayIEJICAgIAAAkACQAJAIANBAXENACACLQAAIgUNAUEAIQUMAgsgACAC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b3JhZ2VJTnROdENzNE5JZXh3VjFGR1hfNGNvcmU0Y2VsbDdSZWZDZWxsSU50TnRDczVKSGZlV2VRSzB4XzVhbGxvYzN2ZWMzVmVjZkVFRTEwaW5pdGlhbGl6ZU52TnZDc2Jvd3FaTjlTMzcyXzI0cnVzdF9kaWZmZXJlbnRpYWxfZ3Jvd3RoOUlLX09VVFBVVDI3X19fcnVzdF9zdGRfaW50ZXJuYWxfaW5pdF9mbkVCMklfApoBX1JJTnZOdk1zMl9OdENzNUpIZmVXZVFLMHhfNWFsbG9jN3Jhd192ZWNJTnRCOF8xMVJhd1ZlY0lubmVycEU3cmVzZXJ2ZTIxZG9fcmVzZXJ2ZV9hbmRfaGFuZGxlTnROdEJhXzVhbGxvYzZHbG9iYWxFQ3Nib3dxWk45UzM3Ml8yNHJ1c3RfZGlmZmVyZW50aWFsX2dyb3d0aANtX1JOdk1zNV9OdENzNUpIZmVXZVFLMHhfNWFsbG9jN3Jhd192ZWNOdEI1XzExUmF3VmVjSW5uZXIxMWZpbmlzaF9ncm93Q3Nib3dxWk45UzM3Ml8yNHJ1c3RfZGlmZmVyZW50aWFsX2dyb3d0aAR3X1JOdk1zNF9OdENzNUpIZmVXZVFLMHhfNWFsbG9jN3Jhd192ZWNJTnRCNV82UmF3VmVjTnRDc2Jvd3FaTjlTMzcyXzI0cnVzdF9kaWZmZXJlbnRpYWxfZ3Jvd3RoMTFBbmFzdG9tb3Npc0U4Z3Jvd19vbmVCT18Fb19STnZNczRfTnRDczVKSGZlV2VRSzB4XzVhbGxvYzdyYXdfdmVjSU50QjVfNlJhd1ZlY050Q3Nib3dxWk45UzM3Ml8yNHJ1c3RfZGlmZmVyZW50aWFsX2dyb3d0aDROb2RlRThncm93X29uZUJPXwZvX1JOdk1zNF9OdENzNUpIZmVXZVFLMHhfNWFsbG9jN3Jhd192ZWNJTnRCNV82UmF3VmVjTnRDc2Jvd3FaTjlTMzcyXzI0cnVzdF9kaWZmZXJlbnRpYWxfZ3Jvd3RoNFBhdGhFOGdyb3dfb25lQk9fB2lfUk52TXM0X050Q3M1SkhmZVdlUUsweF81YWxsb2M3cmF3X3ZlY0lOdEI1XzZSYXdWZWNUampFRThncm93X29uZUNzYm93cVpOOVMzNzJfMjRydXN0X2RpZmZlcmVudGlhbF9ncm93dGgIZl9STnZNczRfTnRDczVKSGZlV2VRSzB4XzVhbGxvYzdyYXdfdmVjSU50QjVfNlJhd1ZlY2ZFOGdyb3dfb25lQ3Nib3dxWk45UzM3Ml8yNHJ1c3RfZGlmZmVyZW50aWFsX2dyb3d0aAkPY29tcHV0ZV93b3JtX2lrCihnZW5lcmF0ZV9kaWZmZXJlbnRpYWxfZ3Jvd3RoX3Zhc2N1bGF0dXJlCxFnZXRfaWtfb3V0cHV0X2xlbgwRZ2V0X2lrX291dHB1dF9wdHINFWdldF9yZXN1bHRfYnVmZmVyX2xlbg4VZ2V0X3Jlc3VsdF9idWZmZXJfcHRyDypfUk52Q3M1ZkdIanpXWFJhdl83X19fcnVzdGMxMl9fX3J1c3RfYWxsb2MQLF9STnZDczVmR0hqeldYUmF2XzdfX19ydXN0YzE0X19fcnVzdF9kZWFsbG9jESxfUk52Q3M1ZkdIanpXWFJhdl83X19fcnVzdGMxNF9fX3J1c3RfcmVhbGxvYxJBX1JOdkNzNWZHSGp6V1hSYXZfN19fX3J1c3RjMzVfX19ydXN0X25vX2FsbG9jX3NoaW1faXNfdW5zdGFibGVfdjITMF9STnZDczVmR0hqeldYUmF2XzdfX19ydXN0YzE4X19fcnVzdF9zdGFydF9wYW5pYxRhX1JJTnZOdENzNE5JZXh3VjFGR1hfNGNvcmUzcHRyOWRyb3BfZ2x1ZU50TnRDczVKSGZlV2VRSzB4XzVhbGxvYzZzdHJpbmc2U3RyaW5nRUNzaXVTd21vUXIwOGNfM3N0ZBVyX1JJTnZOdENzNE5JZXh3VjFGR1hfNGNvcmUzcHRyOWRyb3BfZ2x1ZU50TnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxM3BhbmljX2hhbmRsZXIxOUZvcm1hdFN0cmluZ1BheWxvYWRFQkhfFoQBX1JJTnZOdk1zMl9OdENzNUpIZmVXZVFLMHhfNWFsbG9jN3Jhd192ZWNJTnRCOF8xMVJhd1ZlY0lubmVycEU3cmVzZXJ2ZTIxZG9fcmVzZXJ2ZV9hbmRfaGFuZGxlTnROdEJhXzVhbGxvYzZHbG9iYWxFQ3NpdVN3bW9RcjA4Y18zc3RkF2RfUklOdk50TnRDc2l1U3dtb1FyMDhjXzNzdGQzc3lzOWJhY2t0cmFjZTI2X19fcnVzdF9lbmRfc2hvcnRfYmFja3RyYWNlTkNOdk50QjZfNWFsbG9jOHJ1c3Rfb29tMHpFQjZfGC1fUk5DTnZOdENzaXVTd21vUXIwOGNfM3N0ZDVhbGxvYzhydXN0X29vbTBCNV8Zbl9SSU52TnROdENzaXVTd21vUXIwOGNfM3N0ZDNzeXM5YmFja3RyYWNlMjZfX19ydXN0X2VuZF9zaG9ydF9iYWNrdHJhY2VOQ052TnRCNl85cGFuaWNraW5nMTNwYW5pY19oYW5kbGVyMHpFQjZfGjdfUk5DTnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxM3BhbmljX2hhbmRsZXIwQjVfG1dfUk52TXM1X050Q3M1SkhmZVdlUUsweF81YWxsb2M3cmF3X3ZlY050QjVfMTFSYXdWZWNJbm5lcjExZmluaXNoX2dyb3dDc2l1U3dtb1FyMDhjXzNzdGQcM19STnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxNXBhbmljX3dpdGhfaG9vax04X1JOdk50Q3NpdVN3bW9RcjA4Y18zc3RkNWFsbG9jMjRkZWZhdWx0X2FsbG9jX2Vycm9yX2hvb2seJ19STnZDczVmR0hqeldYUmF2XzdfX19ydXN0YzEwcnVzdF9wYW5pYx8pX1JOdkNzNWZHSGp6V1hSYXZfN19fX3J1c3RjMTFfX19yZGxfYWxsb2MgZ19STnZNczBfTnRDc2J3NjRJdzdXOUhuXzhkbG1hbGxvYzhkbG1hbGxvY0lOdEI1XzhEbG1hbGxvY050TnRCN18zc3lzNlN5c3RlbUU4bWVtYWxpZ25Dc2l1U3dtb1FyMDhjXzNzdGQhZV9STnZNczBfTnRDc2J3NjRJdzdXOUhuXzhkbG1hbGxvYzhkbG1hbGxvY0lOdEI1XzhEbG1hbGxvY050TnRCN18zc3lzNlN5c3RlbUU2bWFsbG9jQ3NpdVN3bW9RcjA4Y18zc3RkIipfUk52Q3M1ZkdIanpXWFJhdl83X19fcnVzdGMxMl9fX3J1c3RfYWJvcnQjK19STnZDczVmR0hqeldYUmF2XzdfX19ydXN0YzEzX19fcmRsX2RlYWxsb2MkY19STnZNczBfTnRDc2J3NjRJdzdXOUhuXzhkbG1hbGxvYzhkbG1hbGxvY0lOdEI1XzhEbG1hbGxvY050TnRCN18zc3lzNlN5c3RlbUU0ZnJlZUNzaXVTd21vUXIwOGNfM3N0ZCUrX1JOdkNzNWZHSGp6V1hSYXZfN19fX3J1c3RjMTNfX19yZGxfcmVhbGxvYyZsX1JOdk1zMF9OdENzYnc2NEl3N1c5SG5fOGRsbWFsbG9jOGRsbWFsbG9jSU50QjVfOERsbWFsbG9jTnROdEI3XzNzeXM2U3lzdGVtRTEydW5saW5rX2NodW5rQ3NpdVN3bW9RcjA4Y18zc3RkJ21fUk52TXMwX050Q3NidzY0SXc3VzlIbl84ZGxtYWxsb2M4ZGxtYWxsb2NJTnRCNV84RGxtYWxsb2NOdE50QjdfM3N5czZTeXN0ZW1FMTNkaXNwb3NlX2NodW5rQ3NpdVN3bW9RcjA4Y18zc3RkKC5fUk52Q3M1ZkdIanpXWFJhdl83X19fcnVzdGMxN3J1c3RfYmVnaW5fdW53aW5kKThfUk52Q3M1ZkdIanpXWFJhdl83X19fcnVzdGMyNl9fX3J1c3RfYWxsb2NfZXJyb3JfaGFuZGxlcionX1JOdk50Q3NpdVN3bW9RcjA4Y18zc3RkNWFsbG9jOHJ1c3Rfb29tK3JfUk52TXMwX050Q3NidzY0SXc3VzlIbl84ZGxtYWxsb2M4ZGxtYWxsb2NJTnRCNV84RGxtYWxsb2NOdE50QjdfM3N5czZTeXN0ZW1FMThpbnNlcnRfbGFyZ2VfY2h1bmtDc2l1U3dtb1FyMDhjXzNzdGQsOl9STnZOdE50Q3NpdVN3bW9RcjA4Y18zc3RkOXBhbmlja2luZzExcGFuaWNfY291bnQ4aW5jcmVhc2UtZ19STnZYTnRDczROSWV4d1YxRkdYXzRjb3JlM2FueU50TnRDczVKSGZlV2VRSzB4XzVhbGxvYzZzdHJpbmc2U3RyaW5nTnRCMl8zQW55N3R5cGVfaWRDc2l1U3dtb1FyMDhjXzNzdGQuQ19STnZYTnRDczROSWV4d1YxRkdYXzRjb3JlM2FueVJlTnRCMl8zQW55N3R5cGVfaWRDc2l1U3dtb1FyMDhjXzNzdGQveF9STnZYczBfTnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxM3BhbmljX2hhbmRsZXJOdEI1XzE5Rm9ybWF0U3RyaW5nUGF5bG9hZE50TnRDczROSWV4d1YxRkdYXzRjb3JlM2ZtdDdEaXNwbGF5M2ZtdDB9X1JOdlhzMV9Odk50Q3NpdVN3bW9RcjA4Y18zc3RkOXBhbmlja2luZzEzcGFuaWNfaGFuZGxlck50QjVfMTZTdGF0aWNTdHJQYXlsb2FkTnROdENzNE5JZXh3VjFGR1hfNGNvcmU1cGFuaWMxMlBhbmljUGF5bG9hZDNnZXQxgAFfUk52WHMxX052TnRDc2l1U3dtb1FyMDhjXzNzdGQ5cGFuaWNraW5nMTNwYW5pY19oYW5kbGVyTnRCNV8xNlN0YXRpY1N0clBheWxvYWROdE50Q3M0TklleHdWMUZHWF80Y29yZTVwYW5pYzEyUGFuaWNQYXlsb2FkNmFzX3N0cjKCAV9STnZYczFfTnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxM3BhbmljX2hhbmRsZXJOdEI1XzE2U3RhdGljU3RyUGF5bG9hZE50TnRDczROSWV4d1YxRkdYXzRjb3JlNXBhbmljMTJQYW5pY1BheWxvYWQ4dGFrZV9ib3gzdV9STnZYczJfTnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxM3BhbmljX2hhbmRsZXJOdEI1XzE2U3RhdGljU3RyUGF5bG9hZE50TnRDczROSWV4d1YxRkdYXzRjb3JlM2ZtdDdEaXNwbGF5M2ZtdDReX1JOdlhzWl9OdENzNUpIZmVXZVFLMHhfNWFsbG9jNnN0cmluZ050QjVfNlN0cmluZ050TnRDczROSWV4d1YxRkdYXzRjb3JlM2ZtdDVXcml0ZTEwd3JpdGVfY2hhcjVcX1JOdlhzWl9OdENzNUpIZmVXZVFLMHhfNWFsbG9jNnN0cmluZ050QjVfNlN0cmluZ050TnRDczROSWV4d1YxRkdYXzRjb3JlM2ZtdDVXcml0ZTl3cml0ZV9zdHI2f19STnZYc19Odk50Q3NpdVN3bW9RcjA4Y18zc3RkOXBhbmlja2luZzEzcGFuaWNfaGFuZGxlck50QjRfMTlGb3JtYXRTdHJpbmdQYXlsb2FkTnROdENzNE5JZXh3VjFGR1hfNGNvcmU1cGFuaWMxMlBhbmljUGF5bG9hZDNnZXQ3hAFfUk52WHNfTnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxM3BhbmljX2hhbmRsZXJOdEI0XzE5Rm9ybWF0U3RyaW5nUGF5bG9hZE50TnRDczROSWV4d1YxRkdYXzRjb3JlNXBhbmljMTJQYW5pY1BheWxvYWQ4dGFrZV9ib3g4dV9STnZZSU50TnZOdENzaXVTd21vUXIwOGNfM3N0ZDlwYW5pY2tpbmcxMWJlZ2luX3BhbmljN1BheWxvYWRSZUVOdE50Q3M0TklleHdWMUZHWF80Y29yZTVwYW5pYzEyUGFuaWNQYXlsb2FkNmFzX3N0ckI5XzloX1JOdllOdE50Q3M1SkhmZVdlUUsweF81YWxsb2M2c3RyaW5nNlN0cmluZ050TnRDczROSWV4d1YxRkdYXzRjb3JlM2ZtdDVXcml0ZTl3cml0ZV9mbXRDc2l1U3dtb1FyMDhjXzNzdGQ6RV9STnZYc19OdENzYnc2NEl3N1c5SG5fOGRsbWFsbG9jM3N5c050QjRfNlN5c3RlbU50QjZfOUFsbG9jYXRvcjVhbGxvYzswX1JOdk50Q3M1SkhmZVdlUUsweF81YWxsb2M3cmF3X3ZlYzEyaGFuZGxlX2Vycm9yPDRfUk52TnRDczVKSGZlV2VRSzB4XzVhbGxvYzVhbGxvYzE4aGFuZGxlX2FsbG9jX2Vycm9yPTVfUk52TnRDczVKSGZlV2VRSzB4XzVhbGxvYzdyYXdfdmVjMTdjYXBhY2l0eV9vdmVyZmxvdz4pX1JOdk50Q3M0TklleHdWMUZHWF80Y29yZTlwYW5pY2tpbmc1cGFuaWM/OF9STnZYczFpX050Q3M0TklleHdWMUZHWF80Y29yZTNmbXRSZU50QjZfN0Rpc3BsYXkzZm10QjhfQCNfUk52TnRDczROSWV4d1YxRkdYXzRjb3JlM2ZtdDV3cml0ZUEtX1JOdk50Q3M0TklleHdWMUZHWF80Y29yZTlwYW5pY2tpbmc5cGFuaWNfZm10QjdfUk52TnRDczROSWV4d1YxRkdYXzRjb3JlOXBhbmlja2luZzE4cGFuaWNfYm91bmRzX2NoZWNrQz5fUk52TXNhX050Q3M0TklleHdWMUZHWF80Y29yZTNmbXROdEI1XzlGb3JtYXR0ZXIxMnBhZF9pbnRlZ3JhbEQ1X1JOdk50TnRDczROSWV4d1YxRkdYXzRjb3JlM3N0cjVjb3VudDE0ZG9fY291bnRfY2hhcnNFTl9STnZOdk1zYV9OdENzNE5JZXh3VjFGR1hfNGNvcmUzZm10TnRCN185Rm9ybWF0dGVyMTJwYWRfaW50ZWdyYWwxMndyaXRlX3ByZWZpeEY0X1JOdk1zYV9OdENzNE5JZXh3VjFGR1hfNGNvcmUzZm10TnRCNV85Rm9ybWF0dGVyM3BhZEc6X1JOdk1zYV9OdENzNE5JZXh3VjFGR1hfNGNvcmUzZm10TnRCNV85Rm9ybWF0dGVyOXdyaXRlX3N0ckg/X1JOdlhzOF9OdE50TnRDczROSWV4d1YxRkdYXzRjb3JlM2ZtdDNudW0zaW1wbU50QjlfN0Rpc3BsYXkzZm10STZfUk52TnRDczROSWV4d1YxRkdYXzRjb3JlNGNlbGwyMnBhbmljX2FscmVhZHlfYm9ycm93ZWRKTl9STnZYc3JfTnRDczROSWV4d1YxRkdYXzRjb3JlNGNlbGxOdEI1XzE0Qm9ycm93TXV0RXJyb3JOdE50QjdfM2ZtdDdEaXNwbGF5M2ZtdEs+X1JOdk50Q3M0TklleHdWMUZHWF80Y29yZTRjZWxsMzBwYW5pY19hbHJlYWR5X211dGFibHlfYm9ycm93ZWRMS19STnZYc3FfTnRDczROSWV4d1YxRkdYXzRjb3JlNGNlbGxOdEI1XzExQm9ycm93RXJyb3JOdE50QjdfM2ZtdDdEaXNwbGF5M2ZtdE0vX1JOdk50Q3M0TklleHdWMUZHWF80Y29yZTZvcHRpb24xM2V4cGVjdF9mYWlsZWROS19STnZOdE50Q3M0TklleHdWMUZHWF80Y29yZTlwYW5pY2tpbmcxMXBhbmljX2NvbnN0MjNwYW5pY19jb25zdF9kaXZfYnlfemVyb09LX1JOdk50TnRDczROSWV4d1YxRkdYXzRjb3JlOXBhbmlja2luZzExcGFuaWNfY29uc3QyM3BhbmljX2NvbnN0X3JlbV9ieV96ZXJvUFpfUk52TnROdE50Q3M0V2ZxUzZGNVBObV8xN2NvbXBpbGVyX2J1aWx0aW5zNG1hdGg5bGlibV9tYXRoMTRyZW1fcGlvMl9sYXJnZTE0cmVtX3BpbzJfbGFyZ2VRRF9STnZOdE50TnRDczRXZnFTNkY1UE5tXzE3Y29tcGlsZXJfYnVpbHRpbnM0bWF0aDlsaWJtX21hdGg0Y29zZjRjb3NmUgRjb3NmU0ZfUk52TnROdE50Q3M0V2ZxUzZGNVBObV8xN2NvbXBpbGVyX2J1aWx0aW5zNG1hdGg5bGlibV9tYXRoNWF0YW5mNWF0YW5mVEhfUk52TnROdE50Q3M0V2ZxUzZGNVBObV8xN2NvbXBpbGVyX2J1aWx0aW5zNG1hdGg5bGlibV9tYXRoNmF0YW4yZjZhdGFuMmZVBmF0YW4yZlZEX1JOdk50TnROdENzNFdmcVM2RjVQTm1fMTdjb21waWxlcl9idWlsdGluczRtYXRoOWxpYm1fbWF0aDRzaW5mNHNpbmZXBHNpbmYHEgEAD19fc3RhY2tfcG9pbnRlcgkRAgAHLnJvZGF0YQEFLmRhdGEATQlwcm9kdWNlcnMCCGxhbmd1YWdlAQRSdXN0AAxwcm9jZXNzZWQtYnkBBXJ1c3RjHTEuOTkuMSAoNThjZjhmOWMzIDIwMjYtMTAtMTMpAJQBD3RhcmdldF9mZWF0dXJlcwgrC2J1bGstbWVtb3J5Kw9idWxrLW1lbW9yeS1vcHQrFmNhbGwtaW5kaXJlY3Qtb3ZlcmxvbmcrCm11bHRpdmFsdWUrD211dGFibGUtZ2xvYmFscysTbm9udHJhcHBpbmctZnB0b2ludCsPcmVmZXJlbmNlLXR5cGVzKwhzaWduLWV4dA==";
+    var rustWasmInstance = null;
+
+    async function initRustWasm() {
+      if (rustWasmInstance) return rustWasmInstance;
+      try {
+        var binaryString = atob(RUST_WASM_BASE64.trim());
+        var len = binaryString.length;
+        var bytes = new Uint8Array(len);
+        for (var i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        var wasmResult = await WebAssembly.instantiate(bytes, {});
+        rustWasmInstance = wasmResult.instance;
+        console.log("✓ Rust WebAssembly 運算模組已啟動 (Differential Growth & IK Active)");
+        return rustWasmInstance;
+      } catch (err) {
+        console.warn("WebAssembly 加載提示 (使用內建備援):", err);
+        return null;
+      }
+    }
+
+    // =========================================================================
+    // 程序化高階生醫紋理生成器：微分生長微血管網絡 (Differential Growth Vasculature)
+    // 由 Rust WebAssembly 執行高階多體排斥、節點細分生長與血管新生 (Angiogenesis) 演算
+    // 生成遍布體表、肉眼清晰可見的鮮紅色細小微血管 (Vivid Scarlet Capillaries)
+    // =========================================================================
+    async function createDifferentialGrowthVascularTexture() {
+      var canvas = document.createElement('canvas');
+      canvas.width = 2048;
+      canvas.height = 1024;
+      var ctx = canvas.getContext('2d');
+
+      var width = 2048;
+      var height = 1024;
+
+      // 1. 基底肉質：溫潤粉紅與活體皮下微血管床基色
+      var grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0.0, '#f9a8d4');  // 背側溫潤粉肉
+      grad.addColorStop(0.25, '#fb7185'); // 側腹毛細血管豐富帶
+      grad.addColorStop(0.75, '#f43f5e'); // 腹側深粉紅微血管叢
+      grad.addColorStop(1.0, '#fda4af');  // 腹足爬行面粉嫩肉質
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 皮下微血管床瀰漫暈染 (Diffuse subcutaneous capillary blushing)
+      for (var b = 0; b < 2800; b++) {
+        var bx = Math.random() * width;
+        var by = Math.random() * height;
+        var br = 3 + Math.random() * 16;
+        ctx.fillStyle = 'rgba(239, 35, 60, ' + (0.04 + Math.random() * 0.08) + ')';
+        ctx.beginPath();
+        ctx.arc(bx, by, br, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2. 呼叫 Rust WebAssembly 執行高階微分生長物理模擬 (Differential Growth Simulation in Rust)
+      var wasm = rustWasmInstance || (await initRustWasm());
+      var paths = [];
+      var anastomoses = [];
+
+      if (wasm && wasm.exports.generate_differential_growth_vasculature) {
+        var t0 = performance.now();
+        var bufLen = wasm.exports.generate_differential_growth_vasculature(Date.now() & 0x7fffffff);
+        var ptr = wasm.exports.get_result_buffer_ptr();
+        var mem = new Float32Array(wasm.exports.memory.buffer, ptr, bufLen);
+
+        var numPaths = Math.round(mem[0]);
+        var offset = 1;
+        for (var p = 0; p < numPaths; p++) {
+          var numNodes = Math.round(mem[offset++]);
+          var order = Math.round(mem[offset++]); // 0: 主幹, 1: 分枝, 2: 細小微血管
+          var pathNodes = [];
+          for (var n = 0; n < numNodes; n++) {
+            pathNodes.push({ x: mem[offset++], y: mem[offset++] });
+          }
+          paths.push({ nodes: pathNodes, order: order });
+        }
+
+        var numAnastomoses = Math.round(mem[offset++]);
+        for (var a = 0; a < numAnastomoses; a++) {
+          anastomoses.push({
+            x1: mem[offset++],
+            y1: mem[offset++],
+            cpx: mem[offset++],
+            cpy: mem[offset++],
+            x2: mem[offset++],
+            y2: mem[offset++],
+            isCapillary: Math.round(mem[offset++])
+          });
+        }
+        var dt = performance.now() - t0;
+        console.log("✓ Rust WASM Differential Growth 微分生長運算完成！耗時: " + dt.toFixed(2) + " ms, 體表路徑數: " + paths.length + ", 網狀吻合支: " + anastomoses.length);
+      } else {
+        // Fallback generator if WASM unavailable
+        var numSeedPaths = 18;
+        for (var p = 0; p < numSeedPaths; p++) {
+          var path = [];
+          var baseY = (p + 0.5) * (height / numSeedPaths);
+          var numNodes = 22;
+          for (var n = 0; n < numNodes; n++) {
+            var x = (n / (numNodes - 1)) * (width - 60) + 30;
+            var y = baseY + (Math.random() - 0.5) * 20;
+            path.push({ x: x, y: y });
+          }
+          paths.push({ nodes: path, order: (p % 2 === 0 ? 0 : 1) });
+        }
+      }
+
+      // 3. 多層次鮮紅清晰生理組織血管繪製：鮮紅色細小微血管遍布體表，肉眼清晰可見
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // (A) 深層皮下微血管充血暈染層 (Subdermal Erythematous Glow)
+      for (var pi = 0; pi < paths.length; pi++) {
+        var pObj = paths[pi];
+        var pNodes = pObj.nodes;
+        if (pNodes.length < 2) continue;
+        ctx.strokeStyle = 'rgba(239, 35, 60, 0.30)';
+        ctx.lineWidth = pObj.order === 0 ? 6.5 : (pObj.order === 1 ? 4.5 : 3.0);
+        ctx.beginPath();
+        ctx.moveTo(pNodes[0].x, pNodes[0].y);
+        for (var i = 1; i < pNodes.length - 1; i++) {
+          var xc = (pNodes[i].x + pNodes[i + 1].x) * 0.5;
+          var yc = (pNodes[i].y + pNodes[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(pNodes[i].x, pNodes[i].y, xc, yc);
+        }
+        ctx.lineTo(pNodes[pNodes.length - 1].x, pNodes[pNodes.length - 1].y);
+        ctx.stroke();
+      }
+
+      // (B) 鮮明暗紅血管邊界層 (Dark Crimson Contrast Wall - 襯托微血管鮮明輪廓)
+      for (var pi = 0; pi < paths.length; pi++) {
+        var pObj = paths[pi];
+        var pNodes = pObj.nodes;
+        if (pNodes.length < 2) continue;
+        ctx.strokeStyle = '#881337'; // 醇深暗紅外廓
+        ctx.lineWidth = pObj.order === 0 ? 3.8 : (pObj.order === 1 ? 2.5 : 1.7);
+        ctx.beginPath();
+        ctx.moveTo(pNodes[0].x, pNodes[0].y);
+        for (var i = 1; i < pNodes.length - 1; i++) {
+          var xc = (pNodes[i].x + pNodes[i + 1].x) * 0.5;
+          var yc = (pNodes[i].y + pNodes[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(pNodes[i].x, pNodes[i].y, xc, yc);
+        }
+        ctx.lineTo(pNodes[pNodes.length - 1].x, pNodes[pNodes.length - 1].y);
+        ctx.stroke();
+      }
+
+      // (C) 體表肉眼清晰可見的鮮紅色微血管核心 (Vivid Scarlet Fresh Capillary Core)
+      // 滿足需求：鮮紅色、細小微血管以 differential growth 遍布體表、細小但肉眼清晰可見
+      for (var pi = 0; pi < paths.length; pi++) {
+        var pObj = paths[pi];
+        var pNodes = pObj.nodes;
+        if (pNodes.length < 2) continue;
+        ctx.strokeStyle = '#ff0038'; // 高飽和鮮紅動脈血色，極度顯眼醒目
+        ctx.lineWidth = pObj.order === 0 ? 2.8 : (pObj.order === 1 ? 1.8 : 1.35);
+        ctx.beginPath();
+        ctx.moveTo(pNodes[0].x, pNodes[0].y);
+        for (var i = 1; i < pNodes.length - 1; i++) {
+          var xc = (pNodes[i].x + pNodes[i + 1].x) * 0.5;
+          var yc = (pNodes[i].y + pNodes[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(pNodes[i].x, pNodes[i].y, xc, yc);
+        }
+        ctx.lineTo(pNodes[pNodes.length - 1].x, pNodes[pNodes.length - 1].y);
+        ctx.stroke();
+      }
+
+      // (D) 遍佈體表的鮮紅網狀吻合微血管網 (Reticulated Capillary Meshwork)
+      for (var a = 0; a < anastomoses.length; a++) {
+        var an = anastomoses[a];
+        // 吻合支暈染
+        ctx.strokeStyle = 'rgba(239, 35, 60, 0.35)';
+        ctx.lineWidth = 3.0;
+        ctx.beginPath();
+        ctx.moveTo(an.x1, an.y1);
+        ctx.quadraticCurveTo(an.cpx, an.cpy, an.x2, an.y2);
+        ctx.stroke();
+
+        // 鮮紅網狀吻合細小微血管 (清晰肉眼可見)
+        ctx.strokeStyle = '#ff1744';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(an.x1, an.y1);
+        ctx.quadraticCurveTo(an.cpx, an.cpy, an.x2, an.y2);
+        ctx.stroke();
+      }
+
+      // (E) 鮮紅微血管微細高光亮核 (Luminal Highlight)
+      for (var pi = 0; pi < paths.length; pi++) {
+        var pObj = paths[pi];
+        var pNodes = pObj.nodes;
+        if (pNodes.length < 2 || pObj.order === 2) continue;
+        ctx.strokeStyle = 'rgba(255, 228, 230, 0.8)';
+        ctx.lineWidth = pObj.order === 0 ? 0.95 : 0.65;
+        ctx.beginPath();
+        ctx.moveTo(pNodes[0].x, pNodes[0].y);
+        for (var i = 1; i < pNodes.length - 1; i++) {
+          var xc = (pNodes[i].x + pNodes[i + 1].x) * 0.5;
+          var yc = (pNodes[i].y + pNodes[i + 1].y) * 0.5;
+          ctx.quadraticCurveTo(pNodes[i].x, pNodes[i].y, xc, yc);
+        }
+        ctx.lineTo(pNodes[pNodes.length - 1].x, pNodes[pNodes.length - 1].y);
+        ctx.stroke();
+      }
+
+      var tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+
+    function createShellNormalTexture() {
+      var canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      var ctx = canvas.getContext('2d');
+
+      // 中性法線底色
+      ctx.fillStyle = 'rgb(128, 128, 255)';
+      ctx.fillRect(0, 0, 512, 512);
+
+      // 石膏微晶解理紋路與螺旋生長線 (Spiral growth striae)
+      ctx.lineWidth = 1.6;
+      for (var i = 0; i < 45; i++) {
+        var y = (i / 45) * 512;
+        var rVal = 128 + Math.floor((Math.random() - 0.5) * 35);
+        var gVal = 128 + Math.floor((Math.random() - 0.5) * 35);
+        ctx.strokeStyle = 'rgb(' + rVal + ',' + gVal + ', 250)';
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        for (var x = 0; x <= 512; x += 32) {
+          ctx.lineTo(x, y + Math.sin(x * 0.04 + i) * 3.5);
+        }
+        ctx.stroke();
+      }
+
+      var tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    // =========================================================================
+    // 系統初始化 (Three.js 3D Setup)
+    // =========================================================================
+    async function init() {
+      var container = document.getElementById('canvas-container');
+      var w = container.clientWidth || (window.innerWidth - 415);
+      var h = container.clientHeight || window.innerHeight;
+
+      // 1. 場景
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x110e0b);
+      scene.fog = new THREE.FogExp2(0x110e0b, 0.00065);
+
+      // 2. 攝影機 (PerspectiveCamera)
+      camera = new THREE.PerspectiveCamera(45, w / h, 1, 6000);
+      camera.position.set(240, 270, 410);
+
+      // 3. 渲染器 (支援高階物理散射與抗鋸齒)
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      container.appendChild(renderer.domElement);
+
+      // 4. 軌道控制器 (OrbitControls - 保證不穿地底，支援真鳥瞰)
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.07;
+      controls.maxPolarAngle = Math.PI / 2 - 0.03; // 防止沉入地下
+      controls.minPolarAngle = 0.01;              // 支援 90 度完全垂直俯視
+      controls.minDistance = 30;
+      controls.maxDistance = 2500;
+      controls.target.set(0, 8, 0);
+
+      // 5. 光源配置 (重點襯托半透乳白石膏甲與內部血管紅暈)
+      setupLighting();
+
+      // 6. 生成程序化紋理
+      await initRustWasm();
+      sharedVascularTexture = await createDifferentialGrowthVascularTexture();
+      sharedShellNormalTexture = createShellNormalTexture();
+
+      // 7. 3D 大地鹽漠與乾裂地盤
+      createSaltTerrain();
+
+      // 8. 綠藻席群落
+      createAlgaePatches(22);
+
+      // 9. 建立寫實白蜃蠕蛇主體 (Wyrm3D)
+      mainWorm = new Wyrm3D(0, 0, false);
+
+      // 10. 暴雨粒子系統
+      setupRainSystem();
+
+      // 11. 地面水氣導引光圈
+      setupGuideBeacon();
+
+      // 12. 事件監聽
+      window.addEventListener('resize', onWindowResize, false);
+      renderer.domElement.addEventListener('pointermove', onPointerMove, false);
+      renderer.domElement.addEventListener('pointerdown', onPointerDown, false);
+
+      // 啟動動畫渲染主循環
+      animate();
+    }
+
+    // =========================================================================
+    // 光源配置
+    // =========================================================================
+    function setupLighting() {
+      ambientLight = new THREE.AmbientLight(0xe8e0d5, 0.65);
+      scene.add(ambientLight);
+
+      // 斜射金黃日光
+      dirLight = new THREE.DirectionalLight(0xfff7ea, 1.4);
+      dirLight.position.set(550, 750, 400);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.camera.near = 100;
+      dirLight.shadow.camera.far = 2000;
+      var d = 750;
+      dirLight.shadow.camera.left = -d;
+      dirLight.shadow.camera.right = d;
+      dirLight.shadow.camera.top = d;
+      dirLight.shadow.camera.bottom = -d;
+      dirLight.shadow.bias = -0.0004;
+      scene.add(dirLight);
+
+      // 天空冷藍反光 (強烈襯托乳白微晶石膏的光學折射透射)
+      skyFillLight = new THREE.DirectionalLight(0x7dd3fc, 0.45);
+      skyFillLight.position.set(-450, 320, -350);
+      scene.add(skyFillLight);
+
+      // 腹側地表反射光 (使腹部微血管透射更富溫潤血色)
+      var groundWarmLight = new THREE.DirectionalLight(0xfca5a5, 0.22);
+      groundWarmLight.position.set(0, -200, 0);
+      scene.add(groundWarmLight);
+    }
+
+    // =========================================================================
+    // 程序化大地鹽漠地表 (Procedural Salt Flats Terrain)
+    // =========================================================================
+    function createSaltTerrain() {
+      var canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      var ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#2b231c';
+      ctx.fillRect(0, 0, 1024, 1024);
+
+      var points = [];
+      for (var i = 0; i < 75; i++) {
+        points.push({ x: Math.random() * 1024, y: Math.random() * 1024 });
+      }
+
+      ctx.strokeStyle = 'rgba(240, 243, 248, 0.32)';
+      ctx.lineWidth = 3.2;
+      for (var p1 = 0; p1 < points.length; p1++) {
+        for (var p2 = p1 + 1; p2 < points.length; p2++) {
+          var dx = points[p1].x - points[p2].x;
+          var dy = points[p1].y - points[p2].y;
+          var dist = Math.hypot(dx, dy);
+          if (dist < 145) {
+            ctx.beginPath();
+            ctx.moveTo(points[p1].x, points[p1].y);
+            ctx.lineTo(points[p2].x, points[p2].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      for (var n = 0; n < 5500; n++) {
+        var nx = Math.random() * 1024;
+        var ny = Math.random() * 1024;
+        var alpha = Math.random() * 0.22;
+        ctx.fillStyle = 'rgba(255, 255, 255, ' + alpha + ')';
+        ctx.fillRect(nx, ny, 2, 2);
+      }
+
+      var saltTexture = new THREE.CanvasTexture(canvas);
+      saltTexture.wrapS = THREE.RepeatWrapping;
+      saltTexture.wrapT = THREE.RepeatWrapping;
+      saltTexture.repeat.set(9, 9);
+
+      var geo = new THREE.PlaneGeometry(3200, 3200, 70, 70);
+      geo.rotateX(-Math.PI / 2);
+
+      var posAttr = geo.attributes.position;
+      for (var v = 0; v < posAttr.count; v++) {
+        var vx = posAttr.getX(v);
+        var vz = posAttr.getZ(v);
+        var elevation = Math.sin(vx * 0.0025) * Math.cos(vz * 0.0025) * 5.5;
+        posAttr.setY(v, elevation);
+      }
+      geo.computeVertexNormals();
+
+      terrainMaterial = new THREE.MeshStandardMaterial({
+        map: saltTexture,
+        roughness: 0.76,
+        metalness: 0.08,
+        bumpMap: saltTexture,
+        bumpScale: 1.8
+      });
+
+      terrainMesh = new THREE.Mesh(geo, terrainMaterial);
+      terrainMesh.receiveShadow = true;
+      scene.add(terrainMesh);
+    }
+
+    // =========================================================================
+    // 綠藻席群落 (Algae Patches)
+    // =========================================================================
+    function createAlgaePatches(count) {
+      var canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      var ctx = canvas.getContext('2d');
+      var grad = ctx.createRadialGradient(128, 128, 8, 128, 128, 124);
+      grad.addColorStop(0, 'rgba(52, 211, 153, 0.95)');
+      grad.addColorStop(0.35, 'rgba(16, 185, 129, 0.78)');
+      grad.addColorStop(0.7, 'rgba(5, 150, 105, 0.38)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 256, 256);
+
+      var algaeTexture = new THREE.CanvasTexture(canvas);
+
+      for (var i = 0; i < count; i++) {
+        var x = (Math.random() - 0.5) * 2200;
+        var z = (Math.random() - 0.5) * 2200;
+        var radius = 45 + Math.random() * 65;
+
+        var mat = new THREE.MeshBasicMaterial({
+          map: algaeTexture,
+          transparent: true,
+          opacity: 0.28,
+          depthWrite: false
+        });
+
+        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), mat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(x, 0.35, z);
+        scene.add(mesh);
+
+        algaePatches.push({
+          x: x,
+          z: z,
+          radius: radius,
+          mesh: mesh,
+          material: mat,
+          bloomLevel: 0.25
+        });
+      }
+    }
+
+    function updateAlgaePatches() {
+      for (var i = 0; i < algaePatches.length; i++) {
+        var ap = algaePatches[i];
+        if (isRaining) {
+          ap.bloomLevel = Math.min(1.0, ap.bloomLevel + 0.015);
+        } else {
+          ap.bloomLevel = Math.max(0.2, ap.bloomLevel - 0.001);
+        }
+
+        var pulse = Math.sin(Date.now() * 0.003 + i) * 0.05;
+        var baseOpacity = THREE.MathUtils.mapLinear(ap.bloomLevel, 0.2, 1.0, 0.25, 0.9);
+        ap.material.opacity = Math.max(0.12, baseOpacity + pulse);
+
+        var scale = 1.0 + (ap.bloomLevel - 0.2) * 0.28;
+        ap.mesh.scale.set(scale, scale, 1);
+      }
+    }
+
+    // =========================================================================
+    // 3D 暴雨粒子系統 (Rain Particle System)
+    // =========================================================================
+    function setupRainSystem() {
+      var rainCount = 2600;
+      rainGeo = new THREE.BufferGeometry();
+      var positions = new Float32Array(rainCount * 6);
+      var velocities = [];
+
+      for (var i = 0; i < rainCount; i++) {
+        var rx = (Math.random() - 0.5) * 2400;
+        var ry = Math.random() * 550;
+        var rz = (Math.random() - 0.5) * 2400;
+        var len = 18 + Math.random() * 24;
+
+        positions[i * 6 + 0] = rx;
+        positions[i * 6 + 1] = ry;
+        positions[i * 6 + 2] = rz;
+
+        positions[i * 6 + 3] = rx - 2.0;
+        positions[i * 6 + 4] = ry - len;
+        positions[i * 6 + 5] = rz - 1.5;
+
+        velocities.push(19 + Math.random() * 15);
+      }
+
+      rainGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      var rainMat = new THREE.LineBasicMaterial({
+        color: 0x93c5fd,
+        transparent: true,
+        opacity: 0.0,
+        linewidth: 1
+      });
+
+      rainParticles = new THREE.LineSegments(rainGeo, rainMat);
+      rainParticles.userData = { velocities: velocities };
+      scene.add(rainParticles);
+    }
+
+    function updateRain() {
+      if (!rainParticles) return;
+      var rainMat = rainParticles.material;
+
+      if (isRaining) {
+        rainMat.opacity = Math.min(0.72, rainMat.opacity + 0.035);
+        var pos = rainGeo.attributes.position.array;
+        var vels = rainParticles.userData.velocities;
+        var count = vels.length;
+
+        for (var i = 0; i < count; i++) {
+          var spd = vels[i];
+          pos[i * 6 + 1] -= spd;
+          pos[i * 6 + 4] -= spd;
+          pos[i * 6 + 0] -= 1.6;
+          pos[i * 6 + 3] -= 1.6;
+
+          if (pos[i * 6 + 4] < 0) {
+            var rx = (Math.random() - 0.5) * 2400;
+            var ry = 450 + Math.random() * 60;
+            var rz = (Math.random() - 0.5) * 2400;
+            var len = 18 + Math.random() * 24;
+
+            pos[i * 6 + 0] = rx;
+            pos[i * 6 + 1] = ry;
+            pos[i * 6 + 2] = rz;
+
+            pos[i * 6 + 3] = rx - 2.0;
+            pos[i * 6 + 4] = ry - len;
+            pos[i * 6 + 5] = rz - 1.5;
+          }
+        }
+        rainGeo.attributes.position.needsUpdate = true;
+
+        rainTimer--;
+        if (rainTimer <= 0) toggleRain();
+      } else {
+        if (rainMat.opacity > 0) {
+          rainMat.opacity = Math.max(0, rainMat.opacity - 0.02);
+        }
+      }
+    }
+
+    // =========================================================================
+    // 地面水氣導引標記 (Guide Beacon Ring)
+    // =========================================================================
+    function setupGuideBeacon() {
+      guideBeacon = new THREE.Group();
+
+      var outerGeo = new THREE.RingGeometry(14, 18, 36);
+      outerGeo.rotateX(-Math.PI / 2);
+      var outerMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.65
+      });
+      var outerMesh = new THREE.Mesh(outerGeo, outerMat);
+      guideBeacon.add(outerMesh);
+
+      var innerGeo = new THREE.RingGeometry(4, 7, 28);
+      innerGeo.rotateX(-Math.PI / 2);
+      var innerMat = new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.85
+      });
+      var innerMesh = new THREE.Mesh(innerGeo, innerMat);
+      guideBeacon.add(innerMesh);
+
+      guideBeacon.position.set(0, 0.45, 0);
+      guideBeacon.visible = false;
+      scene.add(guideBeacon);
+    }
+
+    // =========================================================================
+    // 物理脫殼碎屑 (Shell Shard 3D Particle)
+    // =========================================================================
+    function ShellShard3D(pos, angle, size) {
+      this.size = size;
+      var shape = new THREE.Shape();
+      shape.moveTo(-size * 0.45, -size * 0.2);
+      shape.lineTo(size * 0.5, -size * 0.15);
+      shape.lineTo(size * 0.35, size * 0.3);
+      shape.lineTo(-size * 0.5, size * 0.2);
+      shape.closePath();
+
+      var geom = new THREE.ShapeGeometry(shape);
+      this.mat = new THREE.MeshStandardMaterial({
+        color: 0xfafcff,
+        roughness: 0.25,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.DoubleSide
+      });
+
+      this.mesh = new THREE.Mesh(geom, this.mat);
+      this.mesh.rotation.x = -Math.PI / 2;
+      this.mesh.rotation.z = angle + (Math.random() - 0.5) * 0.5;
+      this.mesh.position.copy(pos);
+      this.mesh.position.y += Math.random() * 4 + 3;
+
+      this.vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 3.5,
+        Math.random() * 4.5 + 2.0,
+        (Math.random() - 0.5) * 3.5
+      );
+      this.rotSpeed = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.25,
+        (Math.random() - 0.5) * 0.25,
+        (Math.random() - 0.5) * 0.25
+      );
+      this.alpha = 1.0;
+      this.decay = 0.009 + Math.random() * 0.007;
+
+      scene.add(this.mesh);
+
+      this.update = function() {
+        this.mesh.position.add(this.vel);
+        this.mesh.rotation.x += this.rotSpeed.x;
+        this.mesh.rotation.y += this.rotSpeed.y;
+        this.mesh.rotation.z += this.rotSpeed.z;
+
+        if (this.mesh.position.y > 0.5) {
+          this.vel.y -= 0.18;
+        } else {
+          this.vel.set(0, 0, 0);
+          this.mesh.position.y = 0.5;
+        }
+
+        this.alpha -= this.decay;
+        this.mat.opacity = Math.max(0, this.alpha);
+      };
+
+      this.isDead = function() {
+        return this.alpha <= 0;
+      };
+
+      this.destroy = function() {
+        scene.remove(this.mesh);
+        this.mesh.geometry.dispose();
+        this.mat.dispose();
+      };
+    }
+
+    // =========================================================================
+    // 白色六角結晶鹽柱 (Salt Column 3D)
+    // =========================================================================
+    function createSaltColumn(x, z, rot) {
+      var height = 18 + Math.random() * 12;
+      var radius = 4.2 + Math.random() * 1.5;
+
+      var geo = new THREE.CylinderGeometry(radius * 0.85, radius, height, 6);
+      var mat = new THREE.MeshPhysicalMaterial({
+        color: 0xf8fafc,
+        roughness: 0.25,
+        metalness: 0.1,
+        clearcoat: 0.8,
+        transmission: 0.2,
+        transparent: true,
+        opacity: 0.95
+      });
+
+      var mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, height / 2, z);
+      mesh.rotation.y = rot;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      saltColumns.push(mesh);
+      if (saltColumns.length > 30) {
+        var old = saltColumns.shift();
+        scene.remove(old);
+        old.geometry.dispose();
+        old.material.dispose();
+      }
+    }
+
+    // =========================================================================
+    // 核心演算法：連續阿基米德螺旋外殼幾何構建 (Continuous Helical Shell)
+    // 徹底告別方塊！生成連續光滑、帶有扁螺絲狀螺旋脊棱的覆瓦狀石膏甲
+    // =========================================================================
+    function createProceduralSpiralShellGeometry(w, h, len, segmentIndex) {
+      var radialSteps = 30; // 圓周切分
+      var lengthSteps = 16; // 縱向切分
+
+      var geo = new THREE.BufferGeometry();
+      var positions = [];
+      var uvs = [];
+      var indices = [];
+
+      // 脊棱參數
+      var pitch = 2.6; // 螺旋纏繞斜率
+      var ridgeBaseAngle = segmentIndex * 0.55; // 節與節之間連續銜接
+      var ridgeHeight = w * 0.36; // 螺旋隆起高度，清晰挺拔
+
+      for (var j = 0; j <= lengthSteps; j++) {
+        var v = j / lengthSteps; // 0 (前) 到 1 (後)
+        var z = (v - 0.5) * len * 1.25;
+
+        // 覆瓦後緣微微擴張，優雅疊合後一節
+        var flare = 1.0 + Math.pow(v, 2.5) * 0.15;
+
+        for (var i = 0; i <= radialSteps; i++) {
+          var u = i / radialSteps; // 0 到 1
+          // 角度涵蓋蠕蛇背側與兩側側面 (避開腹部爬行面)
+          var theta = -Math.PI * 0.18 + u * (Math.PI * 1.36);
+
+          // 基礎橢圓截面半徑
+          var rx = w * 1.08 * flare;
+          var ry = h * 1.15 * flare;
+
+          // 計算螺旋脊棱相位 (Helical phase)
+          var helicalPhase = theta - (v * pitch) - ridgeBaseAngle;
+          // 歸一化到 [-PI, PI]
+          var dPhase = helicalPhase - Math.round(helicalPhase / (Math.PI * 2)) * (Math.PI * 2);
+
+          // 高斯流線型螺旋脊棱剖面 (Smooth crested airfoil ridge)
+          var ridgeDisplacement = ridgeHeight * Math.exp(-(dPhase * dPhase) / 0.12);
+
+          // 脊棱於腹側邊緣自然漸隱，維護流體力學
+          var edgeFade = Math.sin(u * Math.PI);
+          ridgeDisplacement *= Math.pow(edgeFade, 0.6);
+
+          var totalRadiusX = rx + ridgeDisplacement * 0.85;
+          var totalRadiusY = ry + ridgeDisplacement;
+
+          var vx = totalRadiusX * Math.cos(theta);
+          var vy = totalRadiusY * Math.sin(theta);
+          var vz = z;
+
+          positions.push(vx, vy, vz);
+          uvs.push(u, v);
+        }
+      }
+
+      // 建立四邊形雙三角形索引
+      for (var j = 0; j < lengthSteps; j++) {
+        for (var i = 0; i < radialSteps; i++) {
+          var a = j * (radialSteps + 1) + i;
+          var b = (j + 1) * (radialSteps + 1) + i;
+          var c = (j + 1) * (radialSteps + 1) + (i + 1);
+          var d = j * (radialSteps + 1) + (i + 1);
+
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      return geo;
+    }
+
+
+    // =========================================================================
+    // 核心演算法：食蟻獸流線頭顱與微凸永久硬頭盾 (Anteater Cranial Morphology)
+    // 徹底告別磚塊！流線修長錐管狀吻端，硬盾僅微微隆起順應頭部曲面
+    // =========================================================================
+    function createAnteaterSnoutGeometry(baseW, baseH, length) {
+      var rings = 18;
+      var radSegments = 24;
+
+      var geo = new THREE.BufferGeometry();
+      var positions = [];
+      var uvs = [];
+      var indices = [];
+
+      for (var r = 0; r <= rings; r++) {
+        var t = r / rings; // 0 (基部) 到 1 (吻尖)
+        var z = t * length;
+
+        // 食蟻獸經典吻管修長錐狀漸變曲線
+        var widthFactor = (1.0 - 0.72 * Math.pow(t, 0.78));
+        var heightFactor = (1.0 - 0.68 * Math.pow(t, 0.82));
+        var curW = baseW * widthFactor;
+        var curH = baseH * heightFactor;
+
+        // 吻端微微向下彎曲 (Gentle ventral anteater curve)
+        var curYOffset = -Math.pow(t, 1.8) * 3.8;
+
+        for (var s = 0; s <= radSegments; s++) {
+          var u = s / radSegments;
+          var angle = u * Math.PI * 2;
+
+          var vx = curW * Math.cos(angle);
+          var vy = curH * Math.sin(angle) + curYOffset;
+          var vz = z;
+
+          positions.push(vx, vy, vz);
+          uvs.push(u, t);
+        }
+      }
+
+      // 封閉管身索引
+      for (var r = 0; r < rings; r++) {
+        for (var s = 0; s < radSegments; s++) {
+          var a = r * (radSegments + 1) + s;
+          var b = (r + 1) * (radSegments + 1) + s;
+          var c = (r + 1) * (radSegments + 1) + (s + 1);
+          var d = r * (radSegments + 1) + (s + 1);
+
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      // 封閉吻端尖端頂點 (Snout tip dome cap - 光滑圓潤封口)
+      var tipVertexIndex = positions.length / 3;
+      var lastYOffset = -Math.pow(1.0, 1.8) * 3.8;
+      positions.push(0, lastYOffset, length + 1.2);
+      uvs.push(0.5, 1.0);
+
+      var lastRingStart = rings * (radSegments + 1);
+      for (var s = 0; s < radSegments; s++) {
+        indices.push(lastRingStart + s, tipVertexIndex, lastRingStart + s + 1);
+      }
+
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      return geo;
+    }
+
+    function createAnteaterCasqueGeometry(baseW, baseH, length) {
+      // 食蟻獸額頂永久硬殼：僅微微突起 1.3~1.6 單位，順應頭部流線
+      var rings = 14;
+      var radSegments = 18;
+
+      var geo = new THREE.BufferGeometry();
+      var positions = [];
+      var uvs = [];
+      var indices = [];
+
+      for (var r = 0; r <= rings; r++) {
+        var t = r / rings; // 0 到 1 (覆蓋頭部前半至中前段)
+        var z = t * (length * 0.88);
+
+        var widthFactor = (1.0 - 0.70 * Math.pow(t, 0.85));
+        var heightFactor = (1.0 - 0.66 * Math.pow(t, 0.88));
+
+        var curYOffset = -Math.pow(t, 1.8) * 3.8;
+
+        // 僅覆蓋頭頂與上側面 (角度範圍：-0.08 PI 到 1.08 PI)
+        for (var s = 0; s <= radSegments; s++) {
+          var u = s / radSegments;
+          var angle = -Math.PI * 0.08 + u * (Math.PI * 1.16);
+
+          // 邊緣溫潤倒角坡度 (Organic bevel slope at edges)
+          var edgeBevel = Math.sin(u * Math.PI) * Math.sin(Math.min(1.0, t * 1.3) * Math.PI);
+          var curElevation = 0.35 + 1.25 * Math.pow(Math.max(0, edgeBevel), 0.45);
+
+          var curW = baseW * widthFactor + curElevation;
+          var curH = baseH * heightFactor + curElevation;
+
+          // 背側中央帶有極微細的低風阻矢狀中脊 (Dorsal sagittal crest)
+          var crest = Math.sin(u * Math.PI) * 0.45;
+
+          var vx = curW * Math.cos(angle);
+          var vy = (curH + crest) * Math.sin(angle) + curYOffset;
+          var vz = z;
+
+          positions.push(vx, vy, vz);
+          uvs.push(u, t);
+        }
+      }
+
+      for (var r = 0; r < rings; r++) {
+        for (var s = 0; s < radSegments; s++) {
+          var a = r * (radSegments + 1) + s;
+          var b = (r + 1) * (radSegments + 1) + s;
+          var c = (r + 1) * (radSegments + 1) + (s + 1);
+          var d = r * (radSegments + 1) + (s + 1);
+
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      return geo;
+    }
+
+    // =========================================================================
+    // 白蜃蠕蛇 3D 生物類別 (Wyrm3D - 超寫實生物構造)
+    // =========================================================================
+    function Wyrm3D(x, z, isPartner) {
+      this.isPartner = isPartner || false;
+      this.numSegments = this.isPartner ? 32 : 38;
+      this.segmentLength = 11.5;
+      this.phase = 0;
+      this.speed = moveSpeed;
+
+      this.headPos = new THREE.Vector3(x, 0, z);
+      this.headYaw = 0;
+      this.headPitch = 0;
+
+      this.positions = [];
+      this.angles = [];
+      this.radii = [];
+
+      this.segmentMeshes = [];
+      this.shellPlates = [];
+      this.softBodies = [];
+      this.waterPouches = [];
+      this.slimeParticles = [];
+
+      // 主節點群組
+      this.group = new THREE.Group();
+      scene.add(this.group);
+
+      // 頭部發光燈 (受器孔微光)
+      this.headPointLight = new THREE.PointLight(0x22d3ee, 0.45, 160, 2);
+      scene.add(this.headPointLight);
+
+      // 建立各關節節段
+      for (var i = 0; i < this.numSegments; i++) {
+        var pos = new THREE.Vector3(x, 0, z + i * this.segmentLength);
+        this.positions.push(pos);
+        this.angles.push(0);
+
+        var segGroup = new THREE.Group();
+        segGroup.position.copy(pos);
+        this.group.add(segGroup);
+        this.segmentMeshes.push(segGroup);
+
+        var w = this.getBodyWidth(i);
+        this.radii.push(w);
+        var h = w * 0.72;
+        var len = this.segmentLength * 1.35;
+
+        // ---------------------------------------------------------------------
+        // (A) 內層粉嫩柔韌肉體與體表微分生長微血管網絡 (Subcutaneous Differential Growth Vasculature)
+        // ---------------------------------------------------------------------
+        var bellyGeo = new THREE.CylinderGeometry(w * 0.72, w * 0.76, len * 0.95, 20);
+        bellyGeo.rotateX(Math.PI / 2);
+        bellyGeo.scale(1.04, 0.82, 1.0);
+
+        var segTex = sharedVascularTexture.clone();
+        segTex.offset.x = (i * 0.08) % 1.0;
+        segTex.needsUpdate = true;
+
+        var bellyMat = new THREE.MeshStandardMaterial({
+          map: segTex,
+          color: 0xffffff,
+          roughness: 0.28,
+          metalness: 0.02,
+          emissive: 0xff0038,
+          emissiveMap: segTex,
+          emissiveIntensity: 0.70
+        });
+
+        var bellyMesh = new THREE.Mesh(bellyGeo, bellyMat);
+        bellyMesh.position.y = h * 0.35;
+        bellyMesh.castShadow = true;
+        bellyMesh.receiveShadow = true;
+        bellyMesh.renderOrder = 1;
+        segGroup.add(bellyMesh);
+        this.softBodies.push(bellyMesh);
+
+        // ---------------------------------------------------------------------
+        // (C) 體內半透明水囊發光核心 (Internal Water Pouch - 中前段)
+        // ---------------------------------------------------------------------
+        if (i >= 5 && i <= 28) {
+          var pouchGeo = new THREE.CylinderGeometry(w * 0.36, w * 0.36, len * 0.85, 12);
+          pouchGeo.rotateX(Math.PI / 2);
+          var pouchMat = new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x0284c7,
+            emissiveIntensity: 0.95,
+            roughness: 0.12,
+            metalness: 0.08,
+            transparent: true,
+            opacity: 0.72
+          });
+          var pouchMesh = new THREE.Mesh(pouchGeo, pouchMat);
+          pouchMesh.position.y = h * 0.36;
+          pouchMesh.renderOrder = 2;
+          segGroup.add(pouchMesh);
+          this.waterPouches.push(pouchMesh);
+        }
+
+        // ---------------------------------------------------------------------
+        // (D) 連續阿基米德螺旋半透明石膏外殼 (Clear Helical Translucent Shell)
+        // 徹底告別方塊！由程序化流線幾何構建，物理光學透射透出粉肉與手指血管
+        // ---------------------------------------------------------------------
+        var plateGeo = createProceduralSpiralShellGeometry(w, h, len, i);
+
+        var plateMat = new THREE.MeshPhysicalMaterial({
+          color: 0xfcfdfd,               // 乳白微晶石膏質地
+          roughness: 0.22,               // 絲滑微礦物光澤
+          metalness: 0.02,
+          clearcoat: 0.88,               // 表面天然蠟質反光
+          clearcoatRoughness: 0.14,
+          transmission: 0.85,
+          emissive: 0xff0038,
+          emissiveMap: segTex,
+          emissiveIntensity: 0.32,            // 關鍵物理透射！讓內部粉嫩肉體與血管溫潤透射
+          ior: 1.48,                     // 石膏與幾丁質天然折射率
+          thickness: 0.85,                // 次表面渾厚乳白散射厚度
+          attenuationColor: 0xffdbe3,    // 光線穿透時呈現溫暖玫瑰色散射
+          attenuationDistance: 8.5,
+          normalMap: sharedShellNormalTexture,
+          normalScale: new THREE.Vector2(0.35, 0.35),
+          transparent: true,
+          opacity: 0.94,
+          side: THREE.DoubleSide
+        });
+
+        var plateMesh = new THREE.Mesh(plateGeo, plateMat);
+        plateMesh.castShadow = true;
+        plateMesh.receiveShadow = true;
+        plateMesh.position.y = h * 0.35;
+        plateMesh.renderOrder = 10;
+        segGroup.add(plateMesh);
+        this.shellPlates.push(plateMesh);
+      }
+
+      // 4. 食蟻獸吻端流線解剖構造配置 (非磚塊樣)
+      this.setupHeadAnatomy();
+
+      // 5. 尾端排鹽腺錐門
+      this.setupTailAnatomy();
+    }
+
+    Wyrm3D.prototype.getBodyWidth = function(index) {
+      var t = index / this.numSegments;
+      var baseW;
+      if (t < 0.12) {
+        baseW = THREE.MathUtils.mapLinear(t, 0, 0.12, 8.5, 15.5);
+      } else if (t < 0.45) {
+        baseW = THREE.MathUtils.mapLinear(t, 0.12, 0.45, 15.5, 18.5);
+      } else {
+        baseW = THREE.MathUtils.mapLinear(t, 0.45, 1.0, 18.5, 3.2);
+      }
+      return baseW * (0.8 + (shellHealth / 100) * 0.25);
+    };
+
+    // 食蟻獸流線頭部解剖構造配置 (超寫實無方塊)
+    Wyrm3D.prototype.setupHeadAnatomy = function() {
+      var headGroup = this.segmentMeshes[0];
+      var headW = this.getBodyWidth(0);
+      var headH = headW * 0.72;
+      var headLen = 25.0;
+
+      // 1. 食蟻獸長流線錐狀頭顱肉體 (Sleek elongated anteater head core)
+      var snoutGeo = createAnteaterSnoutGeometry(headW * 0.74, headH * 0.78, headLen);
+      var snoutTex = sharedVascularTexture.clone();
+      snoutTex.offset.x = 0.5;
+      snoutTex.needsUpdate = true;
+
+      var snoutMat = new THREE.MeshStandardMaterial({
+        map: snoutTex,
+        color: 0xfce7f3,
+        roughness: 0.32,
+        metalness: 0.02,
+        emissive: 0xff1744,
+        emissiveMap: snoutTex,
+        emissiveIntensity: 0.45
+      });
+      this.snoutMesh = new THREE.Mesh(snoutGeo, snoutMat);
+      this.snoutMesh.position.set(0, headH * 0.35, 0);
+      this.snoutMesh.castShadow = true;
+      this.snoutMesh.renderOrder = 1;
+      headGroup.add(this.snoutMesh);
+
+      // 2. 食蟻獸額頂永久硬護盾 (微微突起的永久硬殼，非磚塊樣)
+      var casqueGeo = createAnteaterCasqueGeometry(headW * 0.75, headH * 0.79, headLen);
+
+      // (A) 無殼態時的琥珀角質硬護盾 (Amber Keratinous Cranial Plate)
+      this.amberShieldMat = new THREE.MeshStandardMaterial({
+        color: 0xd97706,
+        roughness: 0.32,
+        metalness: 0.08,
+        emissive: 0x78350f,
+        emissiveIntensity: 0.42
+      });
+      this.amberShieldMesh = new THREE.Mesh(casqueGeo, this.amberShieldMat);
+      this.amberShieldMesh.position.set(0, headH * 0.35, 0);
+      this.amberShieldMesh.castShadow = true;
+      this.amberShieldMesh.renderOrder = 5;
+      this.amberShieldMesh.visible = false;
+      headGroup.add(this.amberShieldMesh);
+
+      // (B) 有殼態時礦化形成的半透乳白石膏螺旋吻甲 (Mineralized Milky Gypsum Casque)
+      this.mineralCasqueMat = new THREE.MeshPhysicalMaterial({
+        color: 0xfcfdfd,
+        roughness: 0.22,
+        metalness: 0.02,
+        clearcoat: 0.92,
+        clearcoatRoughness: 0.12,
+        transmission: 0.82,
+        ior: 1.45,
+        thickness: 0.9,
+        emissive: 0xff0038,
+        emissiveMap: snoutTex,
+        emissiveIntensity: 0.28,
+        attenuationColor: 0xffdbe3,
+        attenuationDistance: 8.0,
+        normalMap: sharedShellNormalTexture,
+        transparent: true,
+        opacity: 0.95
+      });
+      this.mineralCasqueMesh = new THREE.Mesh(casqueGeo, this.mineralCasqueMat);
+      this.mineralCasqueMesh.position.set(0, headH * 0.35, 0);
+      this.mineralCasqueMesh.castShadow = true;
+      this.mineralCasqueMesh.renderOrder = 10;
+      headGroup.add(this.mineralCasqueMesh);
+
+      // 3. 兩側杏仁狀感濕受器孔 (Sensory Pits - 脈衝發光)
+      var pitGeo = new THREE.SphereGeometry(1.6, 14, 14);
+      pitGeo.scale(1.0, 0.65, 1.4);
+      this.pitMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        emissive: 0x22d3ee,
+        emissiveIntensity: 0.85,
+        roughness: 0.2
+      });
+
+      this.leftPit = new THREE.Mesh(pitGeo, this.pitMat);
+      this.leftPit.position.set(-headW * 0.58, headH * 0.38, headLen * 0.45);
+      headGroup.add(this.leftPit);
+
+      this.rightPit = new THREE.Mesh(pitGeo, this.pitMat);
+      this.rightPit.position.set(headW * 0.58, headH * 0.38, headLen * 0.45);
+      headGroup.add(this.rightPit);
+
+      // 4. 吻端腹側微細刮藻角質褶 (Ventral Radular Micro-Ridges)
+      var radulaGeo = new THREE.CylinderGeometry(headW * 0.22, headW * 0.22, headLen * 0.4, 8);
+      radulaGeo.rotateX(Math.PI / 2);
+      radulaGeo.scale(1.2, 0.4, 1.0);
+      var radulaMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.32 });
+      var radulaMesh = new THREE.Mesh(radulaGeo, radulaMat);
+      radulaMesh.position.set(0, headH * 0.08, headLen * 0.5);
+      headGroup.add(radulaMesh);
+    };
+
+    // 尾部排鹽腺配置
+    Wyrm3D.prototype.setupTailAnatomy = function() {
+      var tailGroup = this.segmentMeshes[this.numSegments - 1];
+      var tailGeo = new THREE.ConeGeometry(3.2, 9, 14);
+      tailGeo.rotateX(-Math.PI / 2);
+      var tailMat = new THREE.MeshStandardMaterial({
+        color: 0xe2e8f0,
+        roughness: 0.35,
+        metalness: 0.1
+      });
+      var tailCone = new THREE.Mesh(tailGeo, tailMat);
+      tailCone.position.set(0, 2.5, -this.segmentLength * 0.7);
+      tailGroup.add(tailCone);
+    };
+
+    // 黏液痕跡微粒
+    Wyrm3D.prototype.addSlimeParticle = function(pos, colHex) {
+      if (this.slimeParticles.length > 160) {
+        var old = this.slimeParticles.shift();
+        scene.remove(old.mesh);
+        old.mesh.geometry.dispose();
+        old.mesh.material.dispose();
+      }
+
+      var geo = new THREE.CircleGeometry(4.5 + Math.random() * 4, 16);
+      geo.rotateX(-Math.PI / 2);
+      var mat = new THREE.MeshBasicMaterial({
+        color: colHex,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false
+      });
+      var mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(pos.x + (Math.random() - 0.5) * 6, 0.35, pos.z + (Math.random() - 0.5) * 6);
+      scene.add(mesh);
+
+      this.slimeParticles.push({ mesh: mesh, material: mat, alpha: 0.55 });
+    };
+
+    Wyrm3D.prototype.updateSlimeParticles = function() {
+      for (var s = this.slimeParticles.length - 1; s >= 0; s--) {
+        var sp = this.slimeParticles[s];
+        sp.alpha -= 0.0035;
+        sp.material.opacity = Math.max(0, sp.alpha);
+        if (sp.alpha <= 0) {
+          scene.remove(sp.mesh);
+          sp.mesh.geometry.dispose();
+          sp.material.dispose();
+          this.slimeParticles.splice(s, 1);
+        }
+      }
+    };
+
+    // =========================================================================
+    // 蠕蛇運動學主更新 (Kinematics & Realistic Update)
+    // =========================================================================
+    Wyrm3D.prototype.update = function() {
+      this.speed = moveSpeed;
+
+      // 1. 計算前進目標點 (滑鼠引導 vs 伴侶並行 vs 自主巡弋)
+      var target = new THREE.Vector3();
+
+      if (this.isPartner && mainWorm) {
+        var leadHead = mainWorm.headPos;
+        var leadYaw = mainWorm.headYaw;
+        var rightVec = new THREE.Vector3(Math.cos(leadYaw), 0, -Math.sin(leadYaw));
+        var forwardVec = new THREE.Vector3(Math.sin(leadYaw), 0, Math.cos(leadYaw));
+
+        target.copy(leadHead)
+          .add(rightVec.clone().multiplyScalar(52))
+          .sub(forwardVec.clone().multiplyScalar(16));
+      } else if (followMouse && hasGuideTarget) {
+        // 核心對應：滑鼠地表引導點 (隨游標方向即時轉向前進)
+        target.copy(guideTarget);
+      } else {
+        var bestPatch = null;
+        var maxBloom = 0;
+        for (var p = 0; p < algaePatches.length; p++) {
+          var patch = algaePatches[p];
+          var d = Math.hypot(this.headPos.x - patch.x, this.headPos.z - patch.z);
+          if (patch.bloomLevel > maxBloom && d < 900) {
+            maxBloom = patch.bloomLevel;
+            bestPatch = patch;
+          }
+        }
+        if (bestPatch && isRaining) {
+          target.set(bestPatch.x, 0, bestPatch.z);
+        } else {
+          var wanderAngle = (Math.sin(Date.now() * 0.00075) + Math.cos(Date.now() * 0.0012)) * Math.PI;
+          target.set(
+            this.headPos.x + Math.sin(wanderAngle) * 350,
+            0,
+            this.headPos.z + Math.cos(wanderAngle) * 350
+          );
+        }
+      }
+
+      // 邊界防禦轉向
+      if (this.headPos.x < -1200) target.x = 300;
+      if (this.headPos.x > 1200) target.x = -300;
+      if (this.headPos.z < -1200) target.z = 300;
+      if (this.headPos.z > 1200) target.z = -300;
+
+      // 2. 轉向計算 (Yaw Steering - 完全符合滑鼠方向)
+      var dx = target.x - this.headPos.x;
+      var dz = target.z - this.headPos.z;
+      var distToTarget = Math.hypot(dx, dz);
+
+      if (distToTarget > 12) {
+        var desiredYaw = Math.atan2(dx, dz);
+        var diff = desiredYaw - this.headYaw;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        this.headYaw += diff * (this.isPartner ? 0.075 : 0.052);
+      }
+
+      // 3. 波動振幅計算 (蛇行 vs 螺旋鑽探)
+      this.phase += waveFreq;
+      var effectiveAmp = (locomotionMode === 'drill') ? waveAmp * 0.35 : waveAmp;
+      var lateralWiggle = Math.sin(this.phase) * THREE.MathUtils.degToRad(effectiveAmp);
+      var actualHeadYaw = this.headYaw + lateralWiggle;
+
+      // 螺旋鑽探模式自轉角累加
+      if (locomotionMode === 'drill') {
+        drillAngle += 0.16;
+      }
+
+      // 鑽地潛伏插值
+      if (isBurrowed) {
+        burrowDepth = Math.min(1.0, burrowDepth + 0.022);
+        this.headPitch = -burrowDepth * 0.28;
+
+        if (Math.random() < 0.28 && shellHealth > 5) {
+          var shedIdx = Math.floor(THREE.MathUtils.randInt(4, this.numSegments - 4));
+          shellShards.push(new ShellShard3D(this.positions[shedIdx], this.angles[shedIdx], this.radii[shedIdx]));
+          shellHealth = Math.max(0, shellHealth - 0.4);
+        }
+      } else {
+        burrowDepth = Math.max(0.0, burrowDepth + (0.0 - burrowDepth) * 0.045);
+        this.headPitch = 0.0;
+      }
+
+      // 4. 頭部位置推進
+      var curSpeed = this.speed;
+      if (this.isPartner && mainWorm) {
+        var dMain = this.headPos.distanceTo(mainWorm.headPos);
+        if (dMain > 70) curSpeed *= 1.18;
+        else if (dMain < 38) curSpeed *= 0.82;
+      }
+
+      var forwardStepX = Math.sin(actualHeadYaw) * curSpeed;
+      var forwardStepZ = Math.cos(actualHeadYaw) * curSpeed;
+      var targetY = -burrowDepth * 18.0;
+
+      this.headPos.x += forwardStepX;
+      this.headPos.z += forwardStepZ;
+      this.headPos.y += (targetY - this.headPos.y) * 0.08;
+
+      this.positions[0].copy(this.headPos);
+      this.angles[0] = actualHeadYaw;
+
+      // 5. ?????賢???璊像皛??(??Rust WASM 擃扯瞍?撽?)
+      var waveEffect = (locomotionMode === 'drill' ? 0.08 : 0.24);
+
+      if (rustWasmInstance && rustWasmInstance.exports.compute_worm_ik) {
+        if (!this.ikInputBuf || this.ikInputBuf.length !== this.numSegments * 3) {
+          this.ikInputBuf = new Float32Array(this.numSegments * 3);
+        }
+        for (var seg = 0; seg < this.numSegments; seg++) {
+          this.ikInputBuf[seg * 3] = this.positions[seg].x;
+          this.ikInputBuf[seg * 3 + 1] = this.positions[seg].y;
+          this.ikInputBuf[seg * 3 + 2] = this.positions[seg].z;
+        }
+
+        var inPtr = rustWasmInstance.exports.get_result_buffer_ptr();
+        var wasmMem = new Float32Array(rustWasmInstance.exports.memory.buffer);
+        wasmMem.set(this.ikInputBuf, inPtr / 4);
+
+        rustWasmInstance.exports.compute_worm_ik(
+          this.numSegments,
+          this.segmentLength,
+          this.headPos.x,
+          this.headPos.y,
+          this.headPos.z,
+          this.phase,
+          effectiveAmp,
+          waveEffect,
+          inPtr
+        );
+
+        var outPtr = rustWasmInstance.exports.get_ik_output_ptr();
+        var outMem = new Float32Array(rustWasmInstance.exports.memory.buffer, outPtr, this.numSegments * 4);
+
+        for (var seg = 1; seg < this.numSegments; seg++) {
+          this.positions[seg].x = outMem[seg * 4];
+          this.positions[seg].y = outMem[seg * 4 + 1];
+          this.positions[seg].z = outMem[seg * 4 + 2];
+          this.angles[seg] = outMem[seg * 4 + 3];
+        }
+      } else {
+        for (var i = 1; i < this.numSegments; i++) {
+          var prev = this.positions[i - 1];
+          var curr = this.positions[i];
+
+          var segDx = curr.x - prev.x;
+          var segDz = curr.z - prev.z;
+          var naturalAngle = Math.atan2(segDx, segDz);
+
+          var bodyWave = Math.sin(this.phase - i * 0.24) * THREE.MathUtils.degToRad(effectiveAmp * 0.55);
+          var targetAngle = naturalAngle + bodyWave * waveEffect;
+
+          curr.x = prev.x + Math.sin(targetAngle) * this.segmentLength;
+          curr.z = prev.z + Math.cos(targetAngle) * this.segmentLength;
+          curr.y += (prev.y - curr.y) * 0.16;
+
+          this.angles[i] = Math.atan2(prev.x - curr.x, prev.z - curr.z);
+        }
+      }
+
+      // 6. 各節 Transform 更新、生命脈衝與半透透射渲染
+      var now = Date.now() * 0.0018;
+      var shellFactor = hasShell ? (shellHealth / 100) : 0.0;
+
+      for (var k = 0; k < this.numSegments; k++) {
+        var node = this.segmentMeshes[k];
+        node.position.copy(this.positions[k]);
+        node.rotation.set(0, this.angles[k], 0);
+
+        if (k === 0) {
+          node.rotation.x = this.headPitch;
+        } else {
+          var slopeY = this.positions[k - 1].y - this.positions[k].y;
+          node.rotation.x = Math.atan2(slopeY, this.segmentLength);
+        }
+
+        // 螺旋自轉角度
+        if (locomotionMode === 'drill') {
+          node.rotation.z = drillAngle + k * 0.42;
+        }
+
+        var plate = this.shellPlates[k];
+        var belly = this.softBodies[k];
+
+        // 動態生命微血管生理脈動 (Peristaltic differential growth vascular pulse wave)
+        var pulseWave = Math.sin(now * 4.8 - k * 0.32);
+
+        if (hasShell) {
+          plate.visible = true;
+          plate.material.opacity = (0.55 + shellFactor * 0.35) * (1.0 - burrowDepth * 0.7);
+          plate.material.transmission = 0.85;
+          plate.scale.set(0.92 + shellFactor * 0.18, 0.92 + shellFactor * 0.18, 1.0);
+
+          belly.material.color.setHex(0xffffff);
+          belly.material.emissiveIntensity = 0.55 + pulseWave * 0.20;
+          if (plate.material.emissiveMap) {
+            plate.material.emissiveIntensity = 0.30 + pulseWave * 0.12;
+          }
+        } else {
+          plate.visible = false;
+          belly.material.color.setRGB(1.0, 0.65 + pulseWave * 0.15, 0.78 + pulseWave * 0.1);
+          belly.material.emissiveIntensity = 0.95 + pulseWave * 0.25;
+        }
+      }
+
+      var headPulse = Math.sin(now * 4.8);
+      if (this.snoutMesh && this.snoutMesh.material) {
+        this.snoutMesh.material.emissiveIntensity = hasShell ? (0.55 + headPulse * 0.20) : (0.95 + headPulse * 0.25);
+      }
+      if (this.mineralCasqueMat && this.mineralCasqueMat.emissiveMap) {
+        this.mineralCasqueMat.emissiveIntensity = 0.30 + headPulse * 0.12;
+      }
+      // 7. 食蟻獸頭部構造切換 (半透石膏吻甲 vs 琥珀角質硬護盾)
+      if (hasShell) {
+        this.mineralCasqueMesh.visible = true;
+        this.amberShieldMesh.visible = false;
+      } else {
+        this.mineralCasqueMesh.visible = false;
+        this.amberShieldMesh.visible = true; // 展現無殼時永久保護神經的食蟻獸式角質護盾
+      }
+
+      // 感濕受器動態發光
+      var glowIntensity = isRaining ? 3.0 : (followMouse ? 1.6 : 0.45);
+      this.pitMat.emissiveIntensity = glowIntensity;
+      this.headPointLight.position.copy(this.headPos);
+      this.headPointLight.position.y += 6;
+      this.headPointLight.intensity = glowIntensity * 0.8;
+
+      // 8. 綠藻刮食檢測
+      for (var a = 0; a < algaePatches.length; a++) {
+        var ap = algaePatches[a];
+        var distToPatch = Math.hypot(this.headPos.x - ap.x, this.headPos.z - ap.z);
+        if (distToPatch < ap.radius && ap.bloomLevel > 0.25) {
+          waterLevel = Math.min(100, waterLevel + 0.12);
+          if (Math.random() < 0.25) {
+            this.addSlimeParticle(this.headPos, 0x34d399);
+          }
+        }
+      }
+
+      // 自然水分揮發
+      if (!isRaining) {
+        waterLevel = Math.max(10, waterLevel - 0.015);
+      } else {
+        waterLevel = Math.min(100, waterLevel + 0.08);
+      }
+
+      // 留下爬行黏液痕跡
+      if (Math.random() < 0.4 && burrowDepth < 0.6) {
+        var midIdx = Math.floor(this.numSegments * 0.4);
+        this.addSlimeParticle(this.positions[midIdx], hasShell ? 0xbbf7d0 : 0xfbcfe8);
+      }
+
+      this.updateSlimeParticles();
+    };
+
+    // =========================================================================
+    // 伴侶避碰與無穿模約束系統 (Prevent Clipping Between Worms)
+    // =========================================================================
+    function resolveWormCollisions(w1, w2) {
+      if (!w1 || !w2) return;
+
+      var headDist = w1.headPos.distanceTo(w2.headPos);
+      var minHeadDist = 38;
+      if (headDist < minHeadDist && headDist > 0.001) {
+        var pushDir = new THREE.Vector3().subVectors(w2.headPos, w1.headPos).normalize();
+        var overlap = (minHeadDist - headDist) * 0.5;
+        w2.headPos.add(pushDir.clone().multiplyScalar(overlap));
+        w1.headPos.sub(pushDir.clone().multiplyScalar(overlap));
+      }
+
+      for (var i = 0; i < w1.numSegments; i += 2) {
+        var p1 = w1.positions[i];
+        var r1 = w1.radii[i];
+
+        for (var j = 0; j < w2.numSegments; j += 2) {
+          var p2 = w2.positions[j];
+          var r2 = w2.radii[j];
+
+          var dx = p2.x - p1.x;
+          var dz = p2.z - p1.z;
+          var dSq = dx * dx + dz * dz;
+          var minR = (r1 + r2) * 1.08;
+
+          if (dSq < minR * minR && dSq > 0.0001) {
+            var d = Math.sqrt(dSq);
+            var pushMag = (minR - d) * 0.45;
+            var nx = (dx / d) * pushMag;
+            var nz = (dz / d) * pushMag;
+
+            p2.x += nx;
+            p2.z += nz;
+            p1.x -= nx;
+            p1.z -= nz;
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // 攝影機視角與鳥瞰管理 (Camera Control Modes)
+    // =========================================================================
+    function setCameraMode(mode) {
+      cameraMode = mode;
+      var buttons = document.querySelectorAll('.cam-btn');
+      buttons.forEach(function(b) { b.classList.remove('active'); });
+
+      var activeBtn = document.getElementById('cam-' + mode);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (mode === 'top') {
+        // 🛰️ 真・鳥瞰俯視：正上方 90 度直視大地，微偏 Z 軸防止萬向節鎖定
+        var targetPos = mainWorm ? mainWorm.headPos : new THREE.Vector3(0, 0, 0);
+        controls.target.set(targetPos.x, 0, targetPos.z);
+        camera.position.set(targetPos.x, 720, targetPos.z + 0.1);
+        controls.update();
+      } else if (mode === 'head') {
+        if (mainWorm) {
+          var hPos = mainWorm.headPos;
+          var fwd = new THREE.Vector3(Math.sin(mainWorm.headYaw), 0, Math.cos(mainWorm.headYaw));
+          camera.position.copy(hPos).add(fwd.clone().multiplyScalar(65)).add(new THREE.Vector3(0, 24, 0));
+          controls.target.copy(hPos);
+          controls.update();
+        }
+      }
+    }
+
+    function resetCamera() {
+      setCameraMode('free');
+      camera.position.set(240, 270, 410);
+      controls.target.set(0, 8, 0);
+      controls.update();
+    }
+
+    function updateCameraView() {
+      if (!mainWorm) return;
+
+      if (cameraMode === 'follow') {
+        var fwd = new THREE.Vector3(Math.sin(mainWorm.headYaw), 0, Math.cos(mainWorm.headYaw));
+        var targetCamPos = mainWorm.headPos.clone()
+          .sub(fwd.clone().multiplyScalar(210))
+          .add(new THREE.Vector3(0, 85, 0));
+
+        camera.position.lerp(targetCamPos, 0.05);
+        controls.target.lerp(mainWorm.headPos, 0.08);
+      } else if (cameraMode === 'head') {
+        var fwdHead = new THREE.Vector3(Math.sin(mainWorm.headYaw), 0, Math.cos(mainWorm.headYaw));
+        var targetHeadCam = mainWorm.headPos.clone()
+          .add(fwdHead.clone().multiplyScalar(55))
+          .add(new THREE.Vector3(0, 20, 0));
+
+        camera.position.lerp(targetHeadCam, 0.06);
+        controls.target.lerp(mainWorm.headPos, 0.08);
+      } else if (cameraMode === 'top') {
+        var hPos = mainWorm.headPos;
+        controls.target.lerp(new THREE.Vector3(hPos.x, 0, hPos.z), 0.08);
+        camera.position.x = controls.target.x;
+        camera.position.z = controls.target.z + 0.1;
+      }
+    }
+
+    // =========================================================================
+    // 滑鼠即時導引射線求交 (Raycasting & Target Sync)
+    // =========================================================================
+    function onPointerMove(event) {
+      updateGuidePoint(event);
+    }
+
+    function onPointerDown(event) {
+      if (event.button === 0) {
+        updateGuidePoint(event);
+      }
+    }
+
+    function updateGuidePoint(event) {
+      var rect = renderer.domElement.getBoundingClientRect();
+      mouseVec.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseVec.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouseVec, camera);
+      var intersectPoint = new THREE.Vector3();
+
+      if (raycaster.ray.intersectPlane(groundPlane, intersectPoint)) {
+        guideTarget.copy(intersectPoint);
+        hasGuideTarget = true;
+
+        if (guideBeacon && followMouse) {
+          guideBeacon.position.set(intersectPoint.x, 0.45, intersectPoint.z);
+          guideBeacon.visible = true;
+        }
+      }
+    }
+
+    function onWindowResize() {
+      var container = document.getElementById('canvas-container');
+      var w = container.clientWidth || (window.innerWidth - 415);
+      var h = container.clientHeight || window.innerHeight;
+
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    // =========================================================================
+    // 介面交互操作 (UI Actions)
+    // =========================================================================
+    function toggleMouseGuide(enable) {
+      followMouse = enable;
+      document.getElementById('btn-guide-mouse').classList.toggle('active', followMouse);
+      document.getElementById('btn-guide-auto').classList.toggle('active', !followMouse);
+
+      var guideText = document.getElementById('overlay-guide-text');
+      if (guideText) {
+        guideText.innerText = followMouse 
+          ? '移動游標指引蠕蛇前進，游動方向完全隨滑鼠即時對應' 
+          : '自主巡弋漫遊中：蠕蛇正感知地形與藻席自主探索';
+      }
+      if (guideBeacon) guideBeacon.visible = followMouse && hasGuideTarget;
+    }
+
+    function setShellMode(enableShell) {
+      if (hasShell === enableShell) return;
+      hasShell = enableShell;
+
+      document.getElementById('btn-shelled').classList.toggle('active', hasShell);
+      document.getElementById('btn-naked').classList.toggle('active', !hasShell);
+
+      var desc = document.getElementById('morph-desc');
+      var overlay = document.getElementById('overlay-status');
+      var shellVal = document.getElementById('shell-val');
+      var shellBar = document.getElementById('shell-bar');
+
+      if (!hasShell) {
+        if (mainWorm) {
+          for (var i = 0; i < mainWorm.numSegments; i += 2) {
+            shellShards.push(new ShellShard3D(mainWorm.positions[i], mainWorm.angles[i], mainWorm.radii[i]));
+          }
+        }
+        shellHealth = 0;
+        if (shellVal) shellVal.innerText = '0% (脫落光裸)';
+        if (shellBar) shellBar.style.width = '0%';
+        if (desc) desc.innerHTML = '<b>無殼交配態</b>：外殼完全脫落！露出極致光潔粉嫩肉體與<b>遍佈體表的微分生長微血管網絡 (Differential Growth)</b>；吻端顯露永久「琥珀角質護盾」，無懼泥沙摩擦。';
+        if (overlay) overlay.innerText = '🪱 脫殼完成：進入交配軟體狀態 (微分生長微血管網絡顯露)';
+      } else {
+        shellHealth = 100;
+        if (shellVal) shellVal.innerText = '100% (完好)';
+        if (shellBar) shellBar.style.width = '100%';
+        if (desc) desc.innerHTML = '<b>有殼態</b>：覆蓋連續清晰的半透明乳白螺旋石膏甲，次表面物理透射顯露內部粉嫩肉體與<b>體表微分生長微血管網絡 (Differential Growth)</b>；頭部呈食蟻獸流線型，微微隆起永久硬護盾。';
+        if (overlay) overlay.innerText = '🛡️ 造殼完成：半透明乳白螺紋甲，體表微分生長微血管溫潤透射！';
+      }
+    }
+
+    function setLocomotionMode(mode) {
+      locomotionMode = mode;
+      document.getElementById('btn-crawl').classList.toggle('active', mode === 'crawl');
+      document.getElementById('btn-drill').classList.toggle('active', mode === 'drill');
+
+      var overlay = document.getElementById('overlay-status');
+      if (mode === 'drill') {
+        if (overlay) overlay.innerText = '🔩 螺旋鑽探模式：軀體自轉，連續阿基米德螺旋外殼化身神級鑽頭！';
+      } else {
+        if (overlay) overlay.innerText = '🐍 側向蛇行模式：左右大波浪扭動，在濕滑藻毯上流暢滑行。';
+      }
+    }
+
+    function toggleRain() {
+      isRaining = !isRaining;
+      var btn = document.getElementById('btn-rain');
+      var hum = document.getElementById('humidity-val');
+      var water = document.getElementById('water-val');
+      var bar = document.getElementById('water-bar');
+      var overlay = document.getElementById('overlay-status');
+
+      if (isRaining) {
+        rainTimer = 750;
+        btn.classList.add('active');
+        btn.innerHTML = '🌧️ 暴雨狂瀉中 (雨季)';
+        if (hum) hum.innerText = '98.5% (百年暴雨狂瀉中)';
+        waterLevel = 100;
+        if (water) water.innerText = '100% (吸飽水囊)';
+        if (bar) bar.style.width = '100%';
+        if (overlay) overlay.innerText = '🌧️ 超級暴雨降臨：藻席活化，吻部感濕受器啟動！';
+
+        terrainMaterial.roughness = 0.28;
+        terrainMaterial.metalness = 0.35;
+        ambientLight.color.setHex(0x94a3b8);
+        dirLight.intensity = 0.75;
+      } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '🌧️ 降下超級暴雨';
+        if (hum) hum.innerText = '0.8% (極度乾燥)';
+        if (overlay) overlay.innerText = '☀️ 暴雨消退：鹽原重歸炙熱死寂，倒數計時！';
+
+        terrainMaterial.roughness = 0.76;
+        terrainMaterial.metalness = 0.08;
+        ambientLight.color.setHex(0xe8e0d5);
+        dirLight.intensity = 1.4;
+      }
+    }
+
+    function toggleBurrow() {
+      isBurrowed = !isBurrowed;
+      var btn = document.getElementById('btn-burrow');
+      var state = document.getElementById('state-text');
+
+      if (isBurrowed) {
+        btn.classList.add('active');
+        btn.innerHTML = '⛏️ 鑽出地表';
+        state.innerText = '潛入地底休眠 (甲片摩擦脫落中)';
+        state.style.color = '#fbbf24';
+      } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '⛏️ 鑽地潛伏 (脫殼)';
+        state.innerText = '地表進食與巡弋';
+        state.style.color = '#34d399';
+      }
+    }
+
+    function triggerSaltExtrusion() {
+      if (!mainWorm) return;
+      var tailPos = mainWorm.positions[mainWorm.numSegments - 1];
+      var tailAng = mainWorm.angles[mainWorm.numSegments - 1];
+
+      createSaltColumn(
+        tailPos.x - Math.sin(tailAng) * 14,
+        tailPos.z - Math.cos(tailAng) * 14,
+        tailAng
+      );
+
+      var overlay = document.getElementById('overlay-status');
+      if (overlay) overlay.innerText = '⚡ 排鹽腺已觸發：自尾端排泄出固態高純度六角鹽柱！';
+    }
+
+    function feedAndRegrow() {
+      shellHealth = 100;
+      var shellVal = document.getElementById('shell-val');
+      var shellBar = document.getElementById('shell-bar');
+      if (shellVal) shellVal.innerText = '100% (吞沙新生)';
+      if (shellBar) shellBar.style.width = '100%';
+
+      if (!hasShell) {
+        setShellMode(true);
+      } else {
+        var overlay = document.getElementById('overlay-status');
+        if (overlay) overlay.innerText = '🏜️ 吞沙修復：吸收石膏與矽質，半透明乳白石膏甲晶體增厚！';
+      }
+
+      if (mainWorm) {
+        for (var i = 0; i < 20; i++) {
+          var segIdx = Math.floor(Math.random() * mainWorm.numSegments);
+          mainWorm.addSlimeParticle(mainWorm.positions[segIdx], 0xffffff);
+        }
+      }
+    }
+
+    function togglePartner() {
+      showPartner = !showPartner;
+      var btn = document.getElementById('btn-mate');
+      if (btn) btn.classList.toggle('active', showPartner);
+
+      if (showPartner) {
+        partnerWorm = new Wyrm3D(mainWorm.headPos.x + 50, mainWorm.headPos.z - 20, true);
+        var overlay = document.getElementById('overlay-status');
+        if (overlay) overlay.innerText = '👫 尋獲伴侶／無性分裂！雙蟲並行同游，防穿模避碰系統已啟動！';
+      } else {
+        if (partnerWorm) {
+          scene.remove(partnerWorm.group);
+          scene.remove(partnerWorm.headPointLight);
+          partnerWorm = null;
+        }
+        var overlay = document.getElementById('overlay-status');
+        if (overlay) overlay.innerText = '🍂 繁衍完成／獨自游動：分道揚鑣各自鑽入深層地府。';
+      }
+    }
+
+    function updateSliders() {
+      moveSpeed = parseFloat(document.getElementById('slider-speed').value);
+      waveAmp = parseFloat(document.getElementById('slider-amp').value);
+      waveFreq = parseFloat(document.getElementById('slider-freq').value);
+
+      document.getElementById('speed-display').innerText = moveSpeed.toFixed(1);
+      document.getElementById('amp-display').innerText = waveAmp;
+      document.getElementById('freq-display').innerText = waveFreq.toFixed(2);
+    }
+
+    function updateUI() {
+      document.getElementById('water-val').innerText = Math.round(waterLevel) + '%';
+      document.getElementById('water-bar').style.width = waterLevel + '%';
+
+      document.getElementById('shell-val').innerText = Math.round(shellHealth) + '%';
+      document.getElementById('shell-bar').style.width = shellHealth + '%';
+    }
+
+    // =========================================================================
+    // 主渲染與動畫循環 (Main Animation Loop)
+    // =========================================================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 1. 更新軌道控制器
+      controls.update();
+
+      // 2. 視角跟隨計算
+      updateCameraView();
+
+      // 3. 更新主蟲動態
+      if (mainWorm) {
+        mainWorm.update();
+      }
+
+      // 4. 更新伴侶同游與防穿模避碰
+      if (showPartner && partnerWorm) {
+        partnerWorm.update();
+        resolveWormCollisions(mainWorm, partnerWorm);
+      }
+
+      // 5. 更新綠藻席
+      updateAlgaePatches();
+
+      // 6. 更新暴雨
+      updateRain();
+
+      // 7. 更新脫殼物理碎片
+      for (var s = shellShards.length - 1; s >= 0; s--) {
+        shellShards[s].update();
+        if (shellShards[s].isDead()) {
+          shellShards[s].destroy();
+          shellShards.splice(s, 1);
+        }
+      }
+
+      // 8. 地面引導光圈動態脈衝呼吸
+      if (guideBeacon && guideBeacon.visible) {
+        var beaconScale = 1.0 + Math.sin(Date.now() * 0.007) * 0.12;
+        guideBeacon.scale.set(beaconScale, beaconScale, 1);
+      }
+
+      // 9. 更新數值面板
+      updateUI();
+
+      // 10. 渲染畫面
+      renderer.render(scene, camera);
+    }
+
+    // 啟動程式
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
